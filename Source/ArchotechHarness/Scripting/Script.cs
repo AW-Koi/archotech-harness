@@ -35,6 +35,23 @@ public static class Script
         return Session.WaitFor(() => UnityEngine.Time.frameCount >= target, DefaultTimeoutSeconds, $"{frames} frames");
     }
 
+    /// <summary>Saves the game, loads it back and waits until the map is playable again.</summary>
+    /// <remarks>Things and pawns held from before go stale; look them up again on the reloaded map.</remarks>
+    public static Task Reload(double timeoutSeconds = DefaultTimeoutSeconds, [CallerLineNumber] int line = 0)
+    {
+        const string saveName = "archo-reload";
+        var previous = Current.Game;
+        GameDataSaveLoader.SaveGame(saveName);
+        GameDataSaveLoader.LoadGame(saveName);
+        return Timed("reload", "save and reload", line, Session.WaitFor(() =>
+        {
+            var ready = Current.Game != null && Current.Game != previous && Current.ProgramState == ProgramState.Playing
+                && Find.CurrentMap != null && !LongEventHandler.AnyEventNowOrWaiting;
+            if (ready) File.Delete(GenFilePaths.FilePathForSavedGame(saveName));
+            return ready;
+        }, timeoutSeconds, "the reloaded game"));
+    }
+
     /// <summary>Saves a screenshot, UI included, as name.png in the run folder and returns its path.</summary>
     public static async Task<string> Shot(string name, [CallerLineNumber] int line = 0)
     {

@@ -70,6 +70,7 @@ Save it in `scenarios/` and run it with `./archo run scenarios/CleanerCleans.cs`
 
 - `await Until(() => condition)` waits for a condition without freezing the game. It fails the run when the timeout passes.
 - `await Ticks(n)` waits for game time. The game starts paused, so set `Clock.Speed` first.
+- `await Reload()` saves the game, loads it back and waits until the map is playable. Look up pawns and things again afterwards, because the old references go stale.
 - `Check(condition)` records a check and carries on. `Require(condition)` stops the scenario when it fails. The report shows the source text of each check.
 
 ### Screenshots and notes
