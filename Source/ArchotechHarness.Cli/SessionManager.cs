@@ -13,19 +13,47 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
 
     public SessionState? Current => SessionState.Load(paths.SessionFile);
 
-    public SessionState Start(LaunchOptions options)
+    /// <summary>Throws a clear message when another archo session, or any RimWorld, is running.</summary>
+    public void ThrowIfBusy()
     {
         RecoverStaleSession();
-        if (Current != null)
+        if (Current is { } other)
         {
-            throw new ScenarioException("A harness session is already running; use it, or run 'archo stop' first.");
+            throw new SessionBusyException(
+                $"Another archo session is running (game pid {other.GameProcessId}, started {other.StartedUtc.ToLocalTime():HH:mm:ss}). " +
+                "Wait for it to finish (or pass --wait), attach to it with --attach, or run 'archo stop' if it is yours.");
         }
 
         var running = Process.GetProcessesByName("RimWorld");
         if (running.Length > 0)
         {
-            throw new ScenarioException($"RimWorld is already running (pid {running[0].Id}). The harness will not touch a game you may be playing; close it first.");
+            throw new SessionBusyException(
+                $"RimWorld is already running (pid {running[0].Id}) outside archo. Archo will not touch a game you may be playing; close it first.");
         }
+    }
+
+    /// <summary>Waits until no other session or game is running, checking every few seconds.</summary>
+    public void WaitUntilFree(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (true)
+        {
+            try
+            {
+                ThrowIfBusy();
+                return;
+            }
+            catch (SessionBusyException e) when (DateTime.UtcNow < deadline)
+            {
+                progress.WriteLine(e.Message + " Waiting.");
+                Thread.Sleep(TimeSpan.FromSeconds(5));
+            }
+        }
+    }
+
+    public SessionState Start(LaunchOptions options)
+    {
+        ThrowIfBusy();
 
         foreach (var mod in options.Mods.Where(m => m.Build != null))
         {

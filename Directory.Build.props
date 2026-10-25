@@ -1,7 +1,5 @@
 <Project>
   <PropertyGroup>
-    <RimWorldDir Condition="'$(RimWorldDir)' == '' and '$(RIMWORLD_DIR)' != ''">$(RIMWORLD_DIR)</RimWorldDir>
-    <RimWorldDir Condition="'$(RimWorldDir)' == ''">D:\Program Files (x86)\Steam\steamapps\common\RimWorld</RimWorldDir>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>

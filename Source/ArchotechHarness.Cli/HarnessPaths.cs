@@ -1,19 +1,18 @@
 namespace ArchotechHarness.Cli;
 
 /// <summary>Where the game, the player's data and the harness state live.</summary>
-/// <remarks>Set RIMWORLD_DIR to override the game folder and ARCHO_HOME to override the harness repo root.</remarks>
+/// <remarks>The game folder is found on first use (RIMWORLD_DIR, then Steam); ARCHO_HOME overrides the harness repo root.</remarks>
 public sealed class HarnessPaths
 {
-    public const string DefaultGameDirectory = @"D:\Program Files (x86)\Steam\steamapps\common\RimWorld";
+    private readonly Lazy<string> _gameDirectory = new(RimWorldLocator.Find);
 
-    private HarnessPaths(string gameDirectory, string playerDataDirectory, string home)
+    private HarnessPaths(string playerDataDirectory, string home)
     {
-        GameDirectory = gameDirectory;
         PlayerDataDirectory = playerDataDirectory;
         Home = home;
     }
 
-    public string GameDirectory { get; }
+    public string GameDirectory => _gameDirectory.Value;
 
     public string PlayerDataDirectory { get; }
 
@@ -27,7 +26,7 @@ public sealed class HarnessPaths
 
     public string WindowIcon => Path.Combine(Home, "art", "ArchotechHarness.ico");
 
-    public string WorkshopDirectory => Path.GetFullPath(Path.Combine(GameDirectory, "..", "..", "workshop", "content", "294100"));
+    public string WorkshopDirectory => Path.GetFullPath(Path.Combine(GameDirectory, "..", "..", "workshop", "content", RimWorldLocator.SteamAppId));
 
     public string StateDirectory => Path.Combine(Home, ".harness");
 
@@ -55,11 +54,10 @@ public sealed class HarnessPaths
 
     public static HarnessPaths Detect()
     {
-        var game = Environment.GetEnvironmentVariable("RIMWORLD_DIR") is { Length: > 0 } fromEnv ? fromEnv : DefaultGameDirectory;
         var localLow = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AppData", "LocalLow");
         var playerData = Path.Combine(localLow, "Ludeon Studios", "RimWorld by Ludeon Studios");
         var home = Environment.GetEnvironmentVariable("ARCHO_HOME") is { Length: > 0 } homeFromEnv ? homeFromEnv : FindHome();
-        return new HarnessPaths(game, playerData, Path.GetFullPath(home));
+        return new HarnessPaths(playerData, Path.GetFullPath(home));
     }
 
     private static string FindHome()

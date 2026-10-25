@@ -1,10 +1,9 @@
 <Project>
   <!-- Import from a scenarios .csproj, in this repo or a mod repo. -->
+  <Import Project="$(MSBuildThisFileDirectory)FindRimWorld.props" />
+
   <PropertyGroup>
     <ArchoHome>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</ArchoHome>
-    <RimWorldDir Condition="'$(RimWorldDir)' == '' and '$(RIMWORLD_DIR)' != ''">$(RIMWORLD_DIR)</RimWorldDir>
-    <RimWorldDir Condition="'$(RimWorldDir)' == ''">D:\Program Files (x86)\Steam\steamapps\common\RimWorld</RimWorldDir>
-    <HarmonyAssemblies Condition="'$(HarmonyAssemblies)' == ''">$(RimWorldDir)\..\..\workshop\content\294100\2009463077\1.7\Assemblies</HarmonyAssemblies>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <LangVersion>latest</LangVersion>
@@ -23,7 +22,8 @@
     <Reference Include="UnityStubs" HintPath="$(RimWorldDir)\UnityStubs.dll" Private="false" />
     <Reference Include="Waylith" HintPath="$(RimWorldDir)\Waylith.dll" Private="false" />
     <Reference Include="ArchotechHarness" HintPath="$(ArchoHome)\mod\1.7\Assemblies\ArchotechHarness.dll" Private="false" />
-    <Reference Include="0Harmony" HintPath="$(HarmonyAssemblies)\0Harmony.dll" Private="false" Condition="Exists('$(HarmonyAssemblies)\0Harmony.dll')" />
+    <Reference Include="$(RimWorldDir)\Mods\*\1.7\Assemblies\0Harmony.dll" Private="false" />
+    <Reference Include="$(RimWorldDir)\..\..\workshop\content\294100\*\1.7\Assemblies\0Harmony.dll" Private="false" />
   </ItemGroup>
 
   <ItemGroup>

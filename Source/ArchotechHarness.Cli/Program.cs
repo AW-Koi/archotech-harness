@@ -9,7 +9,8 @@ public static class Program
         archo: drive RimWorld 1.7 through the Archotech Harness mod.
 
           archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
-          archo run SCENARIO.cs [--keep-open] [--out DIR] [--port N]
+          archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--out DIR] [--port N]
+          archo test [PATH]... [--filter GLOB]... [--retries N] [--wait] [--out DIR] [--port N]
           archo send COMMAND ['{"json":"args"}']
           archo capture PATH.png
           archo status
@@ -35,6 +36,7 @@ public static class Program
             {
                 "launch" => Launch(sessions, options),
                 "run" => Run(paths, sessions, options),
+                "test" => Test(paths, sessions, options),
                 "send" => Send(sessions, options),
                 "capture" => Capture(sessions, options),
                 "status" => Print(sessions.Describe()),
@@ -65,8 +67,30 @@ public static class Program
         var runDirectory = options.Value("--out") is { } outDirectory
             ? Path.GetFullPath(outDirectory)
             : Path.Combine(paths.RunsDirectory, $"{Path.GetFileNameWithoutExtension(file)}-{DateTime.Now:yyyyMMdd-HHmmss}");
-        var passed = new ScenarioClassRunner(sessions, Console.Out).Run(file, runDirectory, options.Flag("--keep-open"), options.Port());
+        WaitIfAsked(sessions, options);
+        var passed = new ScenarioClassRunner(sessions, Console.Out)
+            .Run(file, runDirectory, options.Flag("--keep-open"), options.Flag("--attach"), options.Port());
         return passed ? 0 : 1;
+    }
+
+    private static int Test(HarnessPaths paths, SessionManager sessions, CommandLineOptions options)
+    {
+        var scenarioPaths = options.Positionals.Count > 0 ? options.Positionals : [Directory.GetCurrentDirectory()];
+        var outputDirectory = options.Value("--out") is { } outDirectory
+            ? Path.GetFullPath(outDirectory)
+            : Path.Combine(paths.StateDirectory, "test-runs", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        WaitIfAsked(sessions, options);
+        var outcomes = new ScenarioBatch(sessions, Console.Out, Console.Error).Run(new BatchOptions(
+            scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port()));
+        return outcomes.All(o => o.Passed) ? 0 : 1;
+    }
+
+    private static void WaitIfAsked(SessionManager sessions, CommandLineOptions options)
+    {
+        if (options.Flag("--wait") && !options.Flag("--attach"))
+        {
+            sessions.WaitUntilFree(TimeSpan.FromHours(1));
+        }
     }
 
     private static int Send(SessionManager sessions, CommandLineOptions options)

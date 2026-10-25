@@ -1,0 +1,15 @@
+<Project>
+  <!-- Finds the RimWorld install: RIMWORLD_DIR or RimWorldDir if set, otherwise the Steam library that holds app 294100. -->
+  <PropertyGroup>
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">$(RIMWORLD_DIR)</RimWorldDir>
+    <_SteamPath Condition="'$(RimWorldDir)' == '' And '$(OS)' == 'Windows_NT'">$(Registry:HKEY_CURRENT_USER\Software\Valve\Steam@SteamPath)</_SteamPath>
+    <_SteamLibraries Condition="'$(_SteamPath)' != '' And Exists('$(_SteamPath)/steamapps/libraryfolders.vdf')">$([System.IO.File]::ReadAllText('$(_SteamPath)/steamapps/libraryfolders.vdf'))</_SteamLibraries>
+    <_RimWorldLibrary Condition="'$(_SteamLibraries)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(_SteamLibraries)', '(?s)^.*"path"\s*"([^"]+)"(?:(?!"path").)*?"294100".*$', '$1'))</_RimWorldLibrary>
+    <_RimWorldLibrary Condition="'$(_RimWorldLibrary)' != ''">$(_RimWorldLibrary.Replace('\', '\'))</_RimWorldLibrary>
+    <RimWorldDir Condition="'$(RimWorldDir)' == '' And '$(_RimWorldLibrary)' != '' And Exists('$(_RimWorldLibrary)/steamapps/common/RimWorld')">$(_RimWorldLibrary)/steamapps/common/RimWorld</RimWorldDir>
+  </PropertyGroup>
+
+  <Target Name="RequireRimWorldDir" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(RimWorldDir)/Assembly-CSharp.dll')">
+    <Error Text="RimWorld not found. Set the RIMWORLD_DIR environment variable to the folder that holds Assembly-CSharp.dll." />
+  </Target>
+</Project>

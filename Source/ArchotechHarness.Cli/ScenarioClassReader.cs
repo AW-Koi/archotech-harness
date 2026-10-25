@@ -10,15 +10,30 @@ public static class ScenarioClassReader
 {
     public const string BaseClassName = "HarnessScenario";
 
-    public static ScenarioClass Read(string sourceFile)
+    public static ScenarioClass Read(string sourceFile) =>
+        ReadAll(sourceFile).FirstOrDefault()
+        ?? throw new ScenarioException($"{Path.GetFullPath(sourceFile)} has no class deriving from {BaseClassName}.");
+
+    /// <summary>Every scenario class in the file, in source order; none when it holds no scenario.</summary>
+    public static IReadOnlyList<ScenarioClass> ReadAll(string sourceFile)
     {
         var fullPath = Path.GetFullPath(sourceFile);
-        var directory = Path.GetDirectoryName(fullPath)!;
         var root = CSharpSyntaxTree.ParseText(File.ReadAllText(fullPath), path: fullPath).GetRoot();
-        var scenario = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
-            .FirstOrDefault(c => c.BaseList?.Types.Any(t => LastName(t.Type) == BaseClassName) == true)
-            ?? throw new ScenarioException($"{fullPath} has no class deriving from {BaseClassName}.");
+        var classes = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Where(c => c.BaseList?.Types.Any(t => LastName(t.Type) == BaseClassName) == true)
+            .ToList();
+        if (classes.Count == 0)
+        {
+            return [];
+        }
 
+        var project = FindProject(Path.GetDirectoryName(fullPath)!, fullPath);
+        return classes.Select(c => ReadClass(c, fullPath, project)).ToList();
+    }
+
+    private static ScenarioClass ReadClass(ClassDeclarationSyntax scenario, string fullPath, string project)
+    {
+        var directory = Path.GetDirectoryName(fullPath)!;
         var mods = new List<ScenarioMod>();
         var dlcs = new List<string>();
         var window = new WindowSize(1600, 900);
@@ -39,7 +54,7 @@ public static class ScenarioClassReader
             }
         }
 
-        return new ScenarioClass(FullName(scenario), FindProject(directory, fullPath), mods, dlcs, window);
+        return new ScenarioClass(FullName(scenario), fullPath, project, mods, dlcs, window);
     }
 
     private static ScenarioMod ReadMod(List<AttributeArgumentSyntax> arguments, string directory, string file)

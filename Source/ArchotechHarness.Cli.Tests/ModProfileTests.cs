@@ -2,7 +2,7 @@ namespace ArchotechHarness.Cli.Tests;
 
 public class ModProfileTests
 {
-    private const string MopModId = "terraincognita.janitorscloset";
+    private const string MopModId = "terraincognita.mopmod";
 
     [Fact]
     public void LoadOrder_WithDlcAndModUnderTest_PutsHarmonyCoreDlcHarnessThenMods()

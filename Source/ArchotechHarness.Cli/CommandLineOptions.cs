@@ -3,7 +3,7 @@ namespace ArchotechHarness.Cli;
 /// <summary>Splits archo arguments into positionals, --flags and --name value options.</summary>
 public sealed class CommandLineOptions
 {
-    private static readonly HashSet<string> Flags = ["--keep-open", "--problems"];
+    private static readonly HashSet<string> Flags = ["--keep-open", "--problems", "--attach", "--wait"];
 
     private readonly List<string> _positionals = [];
     private readonly List<(string Name, string Value)> _values = [];
@@ -41,6 +41,8 @@ public sealed class CommandLineOptions
 
     public string Positional(int index, string what) =>
         PositionalOrNull(index) ?? throw new ScenarioException($"Missing {what}.");
+
+    public IReadOnlyList<string> Positionals => _positionals;
 
     public string? PositionalOrNull(int index) => index < _positionals.Count ? _positionals[index] : null;
 

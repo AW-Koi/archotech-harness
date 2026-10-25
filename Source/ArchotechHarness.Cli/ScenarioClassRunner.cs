@@ -1,55 +1,46 @@
-using System.Diagnostics;
 using System.Text.Json.Nodes;
 
 namespace ArchotechHarness.Cli;
 
 /// <summary>Builds a scenarios project, runs one HarnessScenario class in the game and prints the report.</summary>
-/// <remarks>Each run builds under a unique assembly name, so a kept-open game can load a new version.</remarks>
+/// <remarks>It boots its own session, or with attach uses the running one and leaves it open.</remarks>
 public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter output)
 {
-    private const double ScenarioTimeoutSeconds = 1800;
-
-    public bool Run(string sourceFile, string runDirectory, bool keepOpen, int port)
+    public bool Run(string sourceFile, string runDirectory, bool keepOpen, bool attach, int port)
     {
         var scenario = ScenarioClassReader.Read(sourceFile);
-        var session = sessions.Current;
-        if (session == null)
+        var session = attach ? sessions.Current : null;
+        var startsSession = session == null;
+        if (startsSession)
         {
+            sessions.ThrowIfBusy();
             foreach (var mod in scenario.Mods.Where(m => m.Build != null))
             {
                 sessions.Build(mod.Build!);
             }
         }
 
-        var assemblyName = "Scenarios_" + Guid.NewGuid().ToString("N");
-        var binDirectory = Path.Combine(runDirectory, "bin");
-        var errors = BuildProject(scenario.ProjectFile, assemblyName, binDirectory);
-        if (errors != null)
+        string assembly;
+        try
+        {
+            assembly = ScenarioProjectBuilder.Build(scenario.ProjectFile, Path.Combine(runDirectory, "bin"));
+        }
+        catch (ScenarioBuildException e)
         {
             output.WriteLine(new JsonObject
             {
                 ["passed"] = false,
-                ["buildErrors"] = new JsonArray(errors.Select(e => (JsonNode)e).ToArray()),
+                ["buildErrors"] = new JsonArray(e.Errors.Select(l => (JsonNode)l).ToArray()),
             }.ToJsonString());
             return false;
         }
 
         session ??= sessions.Start(new LaunchOptions(
             scenario.Dlcs, scenario.Mods.Select(m => m with { Build = null }).ToList(), scenario.Window, port));
-        var response = new HarnessClient(session.Port).Send("runScenario", new JsonObject
-        {
-            ["assembly"] = Path.Combine(binDirectory, assemblyName + ".dll"),
-            ["entryType"] = scenario.TypeName,
-            ["outputDirectory"] = runDirectory,
-            ["timeoutSeconds"] = ScenarioTimeoutSeconds,
-        });
-
-        var report = response["ok"]?.GetValue<bool>() == true
-            ? response["result"]!.AsObject()
-            : new JsonObject { ["passed"] = false, ["error"] = response["error"]?.DeepClone() };
+        var report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory);
         report["scenario"] = scenario.TypeName;
         report["runDirectory"] = runDirectory;
-        if (!keepOpen)
+        if (startsSession && !keepOpen)
         {
             var restore = sessions.Stop();
             report["playerFilesVerified"] = restore?.Verified;
@@ -58,32 +49,5 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
         File.WriteAllText(Path.Combine(runDirectory, "report.json"), report.ToJsonString(new() { WriteIndented = true }));
         output.WriteLine(report.ToJsonString());
         return report["passed"]?.GetValue<bool>() == true;
-    }
-
-    /// <summary>Returns null on success, otherwise the compiler errors.</summary>
-    private static IReadOnlyList<string>? BuildProject(string project, string assemblyName, string binDirectory)
-    {
-        var start = new ProcessStartInfo("dotnet")
-        {
-            ArgumentList = { "build", project, "--nologo", "-v", "q", "-clp:NoSummary" },
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-
-        start.Environment["ARCHO_SCENARIO_ASSEMBLY"] = assemblyName;
-        start.Environment["ARCHO_SCENARIO_OUTDIR"] = binDirectory;
-        using var process = Process.Start(start)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
-        if (process.ExitCode == 0)
-        {
-            return null;
-        }
-
-        var lines = (stdout.Result + stderr.Result).Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
-        var errors = lines.Where(l => l.Contains(" error ")).Distinct().ToList();
-        return errors.Count > 0 ? errors : lines;
     }
 }
