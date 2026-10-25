@@ -3,7 +3,10 @@ using System.Text.RegularExpressions;
 namespace DevHarness.Cli;
 
 /// <summary>A .csx scenario script: its harness directives, hoisted using lines and C# body.</summary>
-/// <remarks>Directive and using lines become blank in Body, so compiler line numbers match the file.</remarks>
+/// <remarks>
+/// Harness directives live in comments ("// @mod") so editors accept the file. Directive, #r and using
+/// lines become blank in Body, so compiler line numbers match the file.
+/// </remarks>
 public sealed partial record ScriptSource(
     string Path,
     string Body,
@@ -31,14 +34,28 @@ public sealed partial record ScriptSource(
         {
             var line = lines[i].Trim();
             var number = i + 1;
-            if (line.StartsWith('#') && !CSharpDirectives.Any(d => line.StartsWith(d, StringComparison.Ordinal)))
+            Match match;
+            if ((match = HarnessDirective().Match(line)).Success)
             {
-                ApplyDirective(line, fullPath, number, baseDirectory, mods, dlcs, helpers, ref window);
+                ApplyDirective(match.Groups[1].Value, match.Groups[2].Value.Trim(), $"{fullPath}({number})", baseDirectory, mods, dlcs, ref window);
                 lines[i] = "";
+            }
+            else if (ReferenceDirective().IsMatch(line))
+            {
+                lines[i] = "";
+            }
+            else if ((match = LoadDirective().Match(line)).Success)
+            {
+                Load(Resolve(baseDirectory, match.Groups[1].Value), $"{fullPath}({number})", helpers, usings);
+                lines[i] = "";
+            }
+            else if (line.StartsWith('#') && !CSharpDirectives.Any(d => line.StartsWith(d, StringComparison.Ordinal)))
+            {
+                throw new ScenarioException($"{fullPath}({number}): unknown directive '{line}'. Harness directives are comments: // @mod, // @build, // @dlc, // @window.");
             }
             else if (inPreamble && UsingLine().IsMatch(line))
             {
-                usings.Add(new ScriptLine(number, line));
+                usings.Add(new ScriptLine(fullPath, number, line));
                 lines[i] = "";
             }
             else if (line.Length > 0 && !line.StartsWith("//", StringComparison.Ordinal))
@@ -50,39 +67,59 @@ public sealed partial record ScriptSource(
         return new ScriptSource(fullPath, string.Join('\n', lines), usings, mods, dlcs, window, helpers);
     }
 
-    private static void ApplyDirective(
-        string line, string path, int number, string baseDirectory,
-        List<ScenarioMod> mods, List<string> dlcs, List<string> helpers, ref WindowSize window)
+    private static void Load(string file, string location, List<string> helpers, List<ScriptLine> usings)
     {
-        Match match;
-        if ((match = ModDirective().Match(line)).Success)
+        if (!file.EndsWith(".csx", StringComparison.OrdinalIgnoreCase))
         {
-            mods.Add(new ScenarioMod(Resolve(baseDirectory, match.Groups[1].Value), null));
+            helpers.Add(file);
+            return;
         }
-        else if ((match = BuildDirective().Match(line)).Success)
+
+        if (!File.Exists(file))
         {
-            if (mods.Count == 0)
+            if (System.IO.Path.GetFileName(file) == EditorSupport.FileName)
             {
-                throw new ScenarioException($"{path}({number}): #build must follow the #mod it builds.");
+                return;
             }
 
-            mods[^1] = mods[^1] with { Build = new BuildCommand(match.Groups[1].Value, Resolve(baseDirectory, match.Groups[2].Value)) };
+            throw new ScenarioException($"{location}: cannot find {file}.");
         }
-        else if ((match = DlcDirective().Match(line)).Success)
+
+        var loaded = Parse(file);
+        if (loaded.Body.Split('\n').Any(l => l.Trim().Length > 0 && !l.Trim().StartsWith("//", StringComparison.Ordinal)))
         {
-            dlcs.AddRange(match.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            throw new ScenarioException($"{location}: a loaded .csx may only hold #r and using lines; put shared code in a .cs file.");
         }
-        else if ((match = WindowDirective().Match(line)).Success)
+
+        usings.AddRange(loaded.Usings);
+        helpers.AddRange(loaded.HelperFiles);
+    }
+
+    private static void ApplyDirective(
+        string name, string value, string location, string baseDirectory, List<ScenarioMod> mods, List<string> dlcs, ref WindowSize window)
+    {
+        Match match;
+        switch (name)
         {
-            window = new WindowSize(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value));
-        }
-        else if ((match = LoadDirective().Match(line)).Success)
-        {
-            helpers.Add(Resolve(baseDirectory, match.Groups[1].Value));
-        }
-        else
-        {
-            throw new ScenarioException($"{path}({number}): unknown directive '{line}'. Use #mod, #build, #dlc, #window or #load.");
+            case "mod" when (match = QuotedValue().Match(value)).Success:
+                mods.Add(new ScenarioMod(Resolve(baseDirectory, match.Groups[1].Value), null));
+                break;
+            case "build" when (match = BuildValue().Match(value)).Success:
+                if (mods.Count == 0)
+                {
+                    throw new ScenarioException($"{location}: // @build must follow the // @mod it builds.");
+                }
+
+                mods[^1] = mods[^1] with { Build = new BuildCommand(match.Groups[1].Value, Resolve(baseDirectory, match.Groups[2].Value)) };
+                break;
+            case "dlc":
+                dlcs.AddRange(value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                break;
+            case "window" when (match = WindowValue().Match(value)).Success:
+                window = new WindowSize(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value));
+                break;
+            default:
+                throw new ScenarioException($"{location}: cannot read '// @{name} {value}'. Use // @mod \"DIR\", // @build \"COMMAND\" in \"DIR\", // @dlc NAMES or // @window WxH.");
         }
     }
 
@@ -90,17 +127,20 @@ public sealed partial record ScriptSource(
         System.IO.Path.GetFullPath(System.IO.Path.IsPathRooted(path) ? path : System.IO.Path.Combine(baseDirectory, path))
             .TrimEnd(System.IO.Path.DirectorySeparatorChar);
 
-    [GeneratedRegex("""^#mod\s+"([^"]+)"\s*$""")]
-    private static partial Regex ModDirective();
+    [GeneratedRegex("""^//\s*@(\w+)\s*(.*)$""")]
+    private static partial Regex HarnessDirective();
 
-    [GeneratedRegex("""^#build\s+"([^"]+)"\s+in\s+"([^"]+)"\s*$""")]
-    private static partial Regex BuildDirective();
+    [GeneratedRegex("""^"([^"]+)"$""")]
+    private static partial Regex QuotedValue();
 
-    [GeneratedRegex("""^#dlc\s+([\w,\s]+)$""")]
-    private static partial Regex DlcDirective();
+    [GeneratedRegex("""^"([^"]+)"\s+in\s+"([^"]+)"$""")]
+    private static partial Regex BuildValue();
 
-    [GeneratedRegex("""^#window\s+(\d+)x(\d+)\s*$""")]
-    private static partial Regex WindowDirective();
+    [GeneratedRegex("""^(\d+)x(\d+)$""")]
+    private static partial Regex WindowValue();
+
+    [GeneratedRegex("""^#r\s+"[^"]+"\s*$""")]
+    private static partial Regex ReferenceDirective();
 
     [GeneratedRegex("""^#load\s+"([^"]+)"\s*$""")]
     private static partial Regex LoadDirective();

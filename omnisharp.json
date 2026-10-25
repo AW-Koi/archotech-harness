@@ -1,0 +1,6 @@
+{
+  "script": {
+    "enabled": true,
+    "defaultTargetFramework": "net10.0"
+  }
+}

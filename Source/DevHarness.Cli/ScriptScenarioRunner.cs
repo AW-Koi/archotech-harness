@@ -23,7 +23,8 @@ public sealed class ScriptScenarioRunner(HarnessPaths paths, SessionManager sess
         CompiledScript compiled;
         try
         {
-            compiled = new ScriptCompiler(ScriptReferences.Collect(paths, script.Mods), ScriptReferences.DefaultUsings).Compile(script);
+            var references = WriteEditorSupport(paths, script);
+            compiled = new ScriptCompiler(references, ScriptReferences.DefaultUsings).Compile(script);
         }
         catch (ScriptCompileException e)
         {
@@ -64,5 +65,13 @@ public sealed class ScriptScenarioRunner(HarnessPaths paths, SessionManager sess
         File.WriteAllText(Path.Combine(runDirectory, "report.json"), report.ToJsonString(new() { WriteIndented = true }));
         output.WriteLine(report.ToJsonString());
         return report["passed"]?.GetValue<bool>() == true;
+    }
+
+    /// <summary>Writes .rwh-editor.csx beside the script and returns the managed references it lists.</summary>
+    public static IReadOnlyList<string> WriteEditorSupport(HarnessPaths paths, ScriptSource script)
+    {
+        var references = ScriptReferences.Collect(paths, script.Mods).Where(ScriptCompiler.IsManagedAssembly).ToList();
+        EditorSupport.Write(Path.Combine(Path.GetDirectoryName(script.Path)!, EditorSupport.FileName), references, ScriptReferences.DefaultUsings);
+        return references;
     }
 }

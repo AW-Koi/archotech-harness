@@ -45,8 +45,9 @@ The first call builds the CLI and the mod. Set `RWH_REBUILD=1` to rebuild after 
 A scenario is a C# script. It runs on the game's main thread with full access to the game and every loaded mod, and `await` waits without freezing the game:
 
 ```csharp
-#mod "../../JanitorsCloset/mod"
-#build "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj" in "../../JanitorsCloset"
+// @mod "../../JanitorsCloset/mod"
+// @build "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj" in "../../JanitorsCloset"
+#load ".rwh-editor.csx"
 using JanitorsCloset.Defs;
 
 var room = Build.Room(World.Center, width: 11, height: 9, floor: "WoodPlankFloor", door: Rot4.South);
@@ -68,17 +69,23 @@ await Shot("after");
 
 ### Directives
 
-Each directive goes on its own line at the top of the script. Paths are relative to the script.
+Harness directives are comments, so editors accept the file. Each goes on its own line at the top of the script, and paths are relative to the script.
 
 | Directive | Does |
 | --- | --- |
-| `#mod "DIR"` | Loads a mod under test; DIR holds `About/About.xml`. Its assemblies become references. |
-| `#build "COMMAND" in "DIR"` | Runs COMMAND in DIR before launch, for the `#mod` above it. |
-| `#dlc biotech, ideology` | Activates DLCs. |
-| `#window 1600x900` | Sets the window size. |
+| `// @mod "DIR"` | Loads a mod under test; DIR holds `About/About.xml`. Its assemblies become references. |
+| `// @build "COMMAND" in "DIR"` | Runs COMMAND in DIR before launch, for the `// @mod` above it. |
+| `// @dlc biotech, ideology` | Activates DLCs. |
+| `// @window 1600x900` | Sets the window size. |
 | `#load "helpers.cs"` | Compiles a C# file with the script, for shared classes and setup. |
+| `#load "x.csx"` | Takes the `using` lines of a .csx that holds only `#r` and `using` lines. |
+| `#r "x.dll"` | Ignored by `rwh`, which references the assemblies itself. Editors use it. |
 
 The script imports `System`, `System.Collections.Generic`, `System.Linq`, `System.Threading.Tasks`, `Verse`, `Verse.AI`, `RimWorld` and `DevHarness.Scripting`. Add more `using` lines at the top.
+
+### Editor support
+
+`rwh run` and `rwh editor SCRIPT.csx` write `.rwh-editor.csx` next to the script. It lists `#r` references to the game, Harmony, harness and mod assemblies, plus the default `using` lines. Start a script with `#load ".rwh-editor.csx"` and a C# script editor resolves the harness API, the game and your mod. The file holds machine-specific paths, so git ignores it. `omnisharp.json` sets the script target framework to .NET 10 for OmniSharp.
 
 ### Script API
 
@@ -110,6 +117,7 @@ The report lists `passed`, `checks` (with the source text of each condition), `n
 | `rwh launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]` | Starts a session and returns once the map is loaded. |
 | `rwh run SCENARIO [--keep-open] [--out DIR]` | Runs a `.csx` script or a `.json` step list, starting a session if none is running. |
 | `rwh send COMMAND ['{json args}']` | Sends one harness command and prints the response. |
+| `rwh editor SCRIPT.csx` | Writes `.rwh-editor.csx` for editor IntelliSense without running anything. |
 | `rwh capture PATH.png` | Captures the game window from outside the game. |
 | `rwh status` | Shows whether a session is running. |
 | `rwh log [--count N] [--problems]` | Prints the tail of the session log. |

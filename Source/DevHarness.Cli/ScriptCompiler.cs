@@ -38,7 +38,7 @@ public sealed class ScriptCompiler(IEnumerable<string> referencePaths, IEnumerab
             trees,
             _references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Debug, allowUnsafe: true)
-                .WithSpecificDiagnosticOptions(new Dictionary<string, ReportDiagnostic> { ["CS1998"] = ReportDiagnostic.Suppress, ["CS1701"] = ReportDiagnostic.Suppress, ["CS1702"] = ReportDiagnostic.Suppress }));
+                .WithSpecificDiagnosticOptions(new Dictionary<string, ReportDiagnostic> { ["CS1998"] = ReportDiagnostic.Suppress, ["CS0105"] = ReportDiagnostic.Suppress, ["CS1701"] = ReportDiagnostic.Suppress, ["CS1702"] = ReportDiagnostic.Suppress }));
 
         using var assembly = new MemoryStream();
         using var symbols = new MemoryStream();
@@ -64,7 +64,7 @@ public sealed class ScriptCompiler(IEnumerable<string> referencePaths, IEnumerab
 
         foreach (var line in script.Usings)
         {
-            source.Append($"#line {line.Number} \"{script.Path}\"\n{line.Text}\n");
+            source.Append($"#line {line.Number} \"{line.File}\"\n{line.Text}\n");
         }
 
         source.Append($"#line default\nnamespace {assemblyName}\n{{\npublic static class Entry\n{{\npublic static async System.Threading.Tasks.Task {EntryMethod}()\n{{\n");
@@ -73,7 +73,7 @@ public sealed class ScriptCompiler(IEnumerable<string> referencePaths, IEnumerab
         return source.ToString();
     }
 
-    private static bool IsManagedAssembly(string path)
+    public static bool IsManagedAssembly(string path)
     {
         try
         {

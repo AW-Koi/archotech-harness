@@ -28,7 +28,7 @@ public sealed class ScriptCompilerTests : IDisposable
     [Fact]
     public void Compile_TypeErrorInTheScript_ReportsTheScriptFileAndLine()
     {
-        var path = _temp.WriteFile("broken.csx", "#dlc biotech\nvar room = 1;\nint mop = \"wet\";\n");
+        var path = _temp.WriteFile("broken.csx", "// @dlc biotech\nvar room = 1;\nint mop = \"wet\";\n");
 
         var error = Assert.Throws<ScriptCompileException>(() => _compiler.Compile(ScriptSource.Parse(path)));
 

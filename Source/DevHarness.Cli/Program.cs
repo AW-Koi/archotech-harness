@@ -11,6 +11,7 @@ public static class Program
           rwh launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
           rwh run SCENARIO.csx|SCENARIO.json [--keep-open] [--out DIR] [--port N]
           rwh send COMMAND ['{"json":"args"}']
+          rwh editor SCRIPT.csx
           rwh capture PATH.png
           rwh status
           rwh log [--count N] [--problems]
@@ -37,6 +38,7 @@ public static class Program
                 "run" => Run(paths, sessions, options),
                 "send" => Send(sessions, options),
                 "capture" => Capture(sessions, options),
+                "editor" => Editor(paths, options),
                 "status" => Print(sessions.Describe()),
                 "log" => Log(paths, options),
                 "stop" => Print(Describe(sessions.Stop())),
@@ -71,6 +73,17 @@ public static class Program
             ? new ScriptScenarioRunner(paths, sessions, Console.Out).Run(file, runDirectory, options.Flag("--keep-open"), options.Port())
             : new ScenarioRunner(sessions, Console.Out).Run(ScenarioLoader.Load(file), runDirectory, options.Flag("--keep-open"), options.Port());
         return passed ? 0 : 1;
+    }
+
+    private static int Editor(HarnessPaths paths, CommandLineOptions options)
+    {
+        var script = ScriptSource.Parse(options.Positional(0, "script file"));
+        var references = ScriptScenarioRunner.WriteEditorSupport(paths, script);
+        return Print(new JsonObject
+        {
+            ["wrote"] = Path.Combine(Path.GetDirectoryName(script.Path)!, EditorSupport.FileName),
+            ["references"] = references.Count,
+        });
     }
 
     private static int Send(SessionManager sessions, CommandLineOptions options)

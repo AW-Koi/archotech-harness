@@ -1,6 +1,7 @@
 // A colonist with a mop and only Cleaning enabled cleans blood and dirt out of a small wooden room.
-#mod "../../JanitorsCloset/mod"
-#build "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj --source https://api.nuget.org/v3/index.json" in "../../JanitorsCloset"
+// @mod "../../JanitorsCloset/mod"
+// @build "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj --source https://api.nuget.org/v3/index.json" in "../../JanitorsCloset"
+#load ".rwh-editor.csx"
 using JanitorsCloset.Defs;
 
 string[] mess = ["Filth_Blood", "Filth_Dirt"];
