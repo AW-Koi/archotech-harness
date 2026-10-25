@@ -1,0 +1,40 @@
+<Project>
+  <!-- Import from a scenarios .csproj, in this repo or a mod repo. -->
+  <PropertyGroup>
+    <ArchoHome>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</ArchoHome>
+    <RimWorldDir Condition="'$(RimWorldDir)' == '' and '$(RIMWORLD_DIR)' != ''">$(RIMWORLD_DIR)</RimWorldDir>
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">D:\Program Files (x86)\Steam\steamapps\common\RimWorld</RimWorldDir>
+    <HarmonyAssemblies Condition="'$(HarmonyAssemblies)' == ''">$(RimWorldDir)\..\..\workshop\content\294100\2009463077\1.7\Assemblies</HarmonyAssemblies>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <NoWarn>$(NoWarn);CS1998</NoWarn>
+    <AssemblyName Condition="'$(ARCHO_SCENARIO_ASSEMBLY)' != ''">$(ARCHO_SCENARIO_ASSEMBLY)</AssemblyName>
+    <OutDir Condition="'$(ARCHO_SCENARIO_OUTDIR)' != ''">$(ARCHO_SCENARIO_OUTDIR)\</OutDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp" HintPath="$(RimWorldDir)\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="UnityStubs" HintPath="$(RimWorldDir)\UnityStubs.dll" Private="false" />
+    <Reference Include="Waylith" HintPath="$(RimWorldDir)\Waylith.dll" Private="false" />
+    <Reference Include="ArchotechHarness" HintPath="$(ArchoHome)\mod\1.7\Assemblies\ArchotechHarness.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(HarmonyAssemblies)\0Harmony.dll" Private="false" Condition="Exists('$(HarmonyAssemblies)\0Harmony.dll')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Threading.Tasks" />
+    <Using Include="Verse" />
+    <Using Include="Verse.AI" />
+    <Using Include="RimWorld" />
+    <Using Include="ArchotechHarness.Scripting" />
+    <Using Include="ArchotechHarness.Scripting.Script" Static="true" />
+  </ItemGroup>
+</Project>

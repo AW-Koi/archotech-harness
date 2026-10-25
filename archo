@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Builds the CLI and the harness mod on first use (or with ARCHO_REBUILD=1), then runs archo.
+set -e
+root="$(cd "$(dirname "$0")" && pwd)"
+exe="$root/.bin/cli/archo.exe"
+if [ ! -f "$exe" ] || [ ! -f "$root/mod/1.7/Assemblies/ArchotechHarness.dll" ] || [ -n "$ARCHO_REBUILD" ]; then
+  dotnet build "$root/Source/ArchotechHarness/ArchotechHarness.csproj" -c Release --nologo -v q >&2
+  dotnet build "$root/Source/ArchotechHarness.Cli/ArchotechHarness.Cli.csproj" -c Release -o "$root/.bin/cli" --nologo -v q >&2
+fi
+exec "$exe" "$@"

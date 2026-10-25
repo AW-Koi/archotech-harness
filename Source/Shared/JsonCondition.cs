@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace DevHarness.Shared;
+namespace ArchotechHarness.Shared;
 
 /// <summary>Compares a JSON value with eq, ne, lt, le, gt or ge.</summary>
 /// <remarks>A null operator tests truthiness: true or a non-zero number.</remarks>

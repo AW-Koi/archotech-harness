@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 
-namespace DevHarness.Shared;
+namespace ArchotechHarness.Shared;
 
 /// <summary>Selects a value by a dotted path such as "pawn.cell.0".</summary>
 /// <remarks>Returns null when any segment is missing.</remarks>

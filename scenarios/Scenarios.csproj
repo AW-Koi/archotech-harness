@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\build\HarnessScenarios.props" />
+  <Import Project="..\build\ArchotechScenarios.props" />
 
   <ItemGroup>
-    <ProjectReference Include="..\Source\DevHarness\DevHarness.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Source\ArchotechHarness\ArchotechHarness.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

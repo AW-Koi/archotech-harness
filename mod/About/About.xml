@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-  <name>RimWorld Dev Harness</name>
+  <name>Archotech Harness</name>
   <author>Terra Incognita</author>
-  <packageId>TerraIncognita.RimWorldDevHarness</packageId>
+  <packageId>TerraIncognita.ArchotechHarness</packageId>
   <supportedVersions>
     <li>1.7</li>
   </supportedVersions>
   <modVersion>0.1.0</modVersion>
-  <url>https://github.com/AW-Koi/rimworld-dev-harness</url>
+  <url>https://github.com/AW-Koi/archotech-harness</url>
   <description>Development-only mod. It opens a localhost command channel so a script or an AI agent can set up a colony, drive the game and capture screenshots. Do not use it in a normal playthrough.</description>
   <modDependencies>
     <li>

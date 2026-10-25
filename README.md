@@ -1,12 +1,12 @@
-# RimWorld dev harness
+# Archotech Harness
 
 Start RimWorld 1.7 from a script, set up a colony, drive the game, read results back as JSON and take screenshots. It's built for AI agents and for repeatable in-game checks of your own mods.
 
 The harness has three parts:
 
-- `rwh`, a command-line tool that prepares a dev profile, launches the game straight into a quick-test map, sends commands and restores your files afterwards.
-- A dev-only mod (`TerraIncognita.RimWorldDevHarness`) that listens on `127.0.0.1` and runs commands on the game's main thread.
-- Scenarios: C# classes in a scenarios project that `rwh run` builds and runs inside the game. JSON step lists also work.
+- `archo`, a command-line tool that prepares a dev profile, launches the game straight into a quick-test map, sends commands and restores your files afterwards.
+- A dev-only mod (`TerraIncognita.ArchotechHarness`) that listens on `127.0.0.1` and runs commands on the game's main thread.
+- Scenarios: C# classes in a scenarios project that `archo run` builds and runs inside the game.
 
 ## Requirements
 
@@ -21,31 +21,31 @@ If RimWorld isn't installed at `D:\Program Files (x86)\Steam\steamapps\common\Ri
 From Git Bash:
 
 ```sh
-./rwh run scenarios/JanitorBasics.cs
+./archo run scenarios/JanitorBasics.cs
 ```
 
 From PowerShell:
 
 ```powershell
-.\rwh.ps1 run scenarios\JanitorBasics.cs
+.\archo.ps1 run scenarios\JanitorBasics.cs
 ```
 
-The first call builds the CLI and the mod. Set `RWH_REBUILD=1` to rebuild after you pull changes. A scenario run prints one JSON report line. Screenshots and the report go to `.harness/runs/<scenario>-<timestamp>/`, or to the folder you pass with `--out`.
+The first call builds the CLI and the mod. Set `ARCHO_REBUILD=1` to rebuild after you pull changes. A scenario run prints one JSON report line. Screenshots and the report go to `.harness/runs/<scenario>-<timestamp>/`, or to the folder you pass with `--out`.
 
 ## What happens to your game files
 
 - **Config:** the game runs with `-savedatafolder=<repo>/.harness/profile`, so it reads and writes a separate ModsConfig.xml, Prefs.xml and Saves folder. Your own config and saves stay as they are.
-- **Logs:** RimWorld always writes `Player.log` to your real data folder. `rwh` backs up `ModsConfig.xml`, `Prefs.xml`, `Player.log` and `Player-prev.log` before launch, then restores them and checks their SHA-256 hashes when the session ends. It keeps the session log as `.harness/last-session-Player.log`.
-- **Crashes:** a hidden watchdog process restores the files when the game exits, even after a crash or a kill. If the watchdog dies too, the next `rwh` command restores them, or you can run `rwh restore`.
-- **Mods folder:** `rwh` links the harness mod, and any mod under test that isn't already installed, into `<RimWorld>/Mods` as `rwh-<packageId>` directory junctions. It removes them when the session ends.
-- **A game you're playing:** `rwh` refuses to start if RimWorld is already running.
+- **Logs:** RimWorld always writes `Player.log` to your real data folder. `archo` backs up `ModsConfig.xml`, `Prefs.xml`, `Player.log` and `Player-prev.log` before launch, then restores them and checks their SHA-256 hashes when the session ends. It keeps the session log as `.harness/last-session-Player.log`.
+- **Crashes:** a hidden watchdog process restores the files when the game exits, even after a crash or a kill. If the watchdog dies too, the next `archo` command restores them, or you can run `archo restore`.
+- **Mods folder:** `archo` links the harness mod, and any mod under test that isn't already installed, into `<RimWorld>/Mods` as `archo-<packageId>` directory junctions. It removes them when the session ends.
+- **A game you're playing:** `archo` refuses to start if RimWorld is already running.
 
 ## Scenarios
 
 A scenario is a C# class deriving from `HarnessScenario`, in a scenarios project. `Run()` executes on the game's main thread with full access to the game and every loaded mod, and `await` waits without freezing the game:
 
 ```csharp
-namespace DevHarness.Scenarios;
+namespace ArchotechHarness.Scenarios;
 
 [Mod("../../JanitorsCloset/mod", Build = "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj", BuildIn = "../../JanitorsCloset")]
 public sealed class JanitorBasics : HarnessScenario
@@ -72,10 +72,10 @@ public sealed class JanitorBasics : HarnessScenario
 Run it by its file:
 
 ```sh
-./rwh run scenarios/JanitorBasics.cs
+./archo run scenarios/JanitorBasics.cs
 ```
 
-`rwh run` reads the class's attributes, builds the listed mods, then builds the scenarios project that holds the file. A build error is reported before the game starts. A runtime error is reported with the scenario file and line it came from.
+`archo run` reads the class's attributes, builds the listed mods, then builds the scenarios project that holds the file. A build error is reported before the game starts. A runtime error is reported with the scenario file and line it came from.
 
 ### Attributes
 
@@ -90,16 +90,16 @@ Attribute arguments must be literals. Paths are relative to the scenario file.
 
 ### Scenarios project
 
-`build/HarnessScenarios.props` turns a .csproj into a scenarios project. It targets .NET 10, references the game, Harmony and the harness, and imports `System`, `System.Collections.Generic`, `System.Linq`, `System.Threading.Tasks`, `Verse`, `Verse.AI`, `RimWorld`, `DevHarness.Scripting` and `static DevHarness.Scripting.Script`. This repo's own project is `scenarios/Scenarios.csproj`.
+`build/ArchotechScenarios.props` turns a .csproj into a scenarios project. It targets .NET 10, references the game, Harmony and the harness, and imports `System`, `System.Collections.Generic`, `System.Linq`, `System.Threading.Tasks`, `Verse`, `Verse.AI`, `RimWorld`, `ArchotechHarness.Scripting` and `static ArchotechHarness.Scripting.Script`. This repo's own project is `scenarios/Scenarios.csproj`.
 
 A mod repo keeps its own scenarios next to the mod, for example `MyMod/harness/Scenarios.csproj`:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RwhHome Condition="'$(RwhHome)' == ''">..\..\_DevHarness</RwhHome>
+    <ArchoHome Condition="'$(ArchoHome)' == ''">..\..\ArchotechHarness</ArchoHome>
   </PropertyGroup>
-  <Import Project="$(RwhHome)\build\HarnessScenarios.props" />
+  <Import Project="$(ArchoHome)\build\ArchotechScenarios.props" />
 
   <ItemGroup>
     <Reference Include="MyMod" HintPath="..\mod\1.7\Assemblies\MyMod.dll" Private="false" />
@@ -107,14 +107,14 @@ A mod repo keeps its own scenarios next to the mod, for example `MyMod/harness/S
 </Project>
 ```
 
-- Set `RwhHome` to the harness clone, as a relative path or through the `RwhHome` environment variable.
+- Set `ArchoHome` to the harness clone, as a relative path or through the `ArchoHome` environment variable.
 - The `Reference` gives scenarios typed access to the mod, such as its DefOf classes.
-- Scenarios in that project use `[Mod("../mod")]`, and run with `<harness>/rwh run MyMod/harness/MyScenario.cs`.
-- The harness mod must be built once (`./rwh --help` builds it), because the props reference `mod/1.7/Assemblies/DevHarness.dll`.
+- Scenarios in that project use `[Mod("../mod")]`, and run with `<harness>/archo run MyMod/harness/MyScenario.cs`.
+- The harness mod must be built once (`./archo --help` builds it), because the props reference `mod/1.7/Assemblies/ArchotechHarness.dll`.
 
 ### Editing in VS Code
 
-Open a folder, not a single file, so C# Dev Kit loads the project. For this repo, open `D:/Modding/RimWorld/_DevHarness`; `RimWorldDevHarness.sln` includes `scenarios/Scenarios.csproj`. For a mod repo, add `harness/Scenarios.csproj` to the mod's .sln, or open the `harness` folder on its own. `dotnet build` of the project checks every scenario.
+Open a folder, not a single file, so C# Dev Kit loads the project. For this repo, open `D:/Modding/RimWorld/ArchotechHarness`; `ArchotechHarness.sln` includes `scenarios/Scenarios.csproj`. For a mod repo, add `harness/Scenarios.csproj` to the mod's .sln, or open the `harness` folder on its own. `dotnet build` of the project checks every scenario.
 
 ### Scenario API
 
@@ -145,20 +145,20 @@ The report lists `passed`, `checks` (with the source text of each condition), `n
 
 | Command | Does |
 | --- | --- |
-| `rwh launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]` | Starts a session and returns once the map is loaded. |
-| `rwh run SCENARIO [--keep-open] [--out DIR]` | Runs a scenario class (`.cs`) or a `.json` step list, starting a session if none is running. |
-| `rwh send COMMAND ['{json args}']` | Sends one harness command and prints the response. |
-| `rwh capture PATH.png` | Captures the game window from outside the game. |
-| `rwh status` | Shows whether a session is running. |
-| `rwh log [--count N] [--problems]` | Prints the tail of the session log. |
-| `rwh stop` | Quits the game and restores your files. |
-| `rwh restore` | Restores your files after an unfinished session. |
+| `archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]` | Starts a session and returns once the map is loaded. |
+| `archo run SCENARIO [--keep-open] [--out DIR]` | Runs a scenario class (`.cs`), starting a session if none is running. |
+| `archo send COMMAND ['{json args}']` | Sends one harness command and prints the response. |
+| `archo capture PATH.png` | Captures the game window from outside the game. |
+| `archo status` | Shows whether a session is running. |
+| `archo log [--count N] [--problems]` | Prints the tail of the session log. |
+| `archo stop` | Quits the game and restores your files. |
+| `archo restore` | Restores your files after an unfinished session. |
 
 DLC names are `royalty`, `ideology`, `biotech`, `anomaly` and `odyssey`. A mod directory is the folder that holds `About/About.xml`.
 
 ## Harness commands
 
-Send them with `rwh send`, or use them as scenario steps. Cells are `[x, z]` or `"center"`. Rectangles are `[x, z, width, height]`. The quick-test map is 250 by 250 cells.
+Send them with `archo send`, or call them from a scenario with `await Command(name, args)`. Cells are `[x, z]` or `"center"`. Rectangles are `[x, z, width, height]`. The quick-test map is 250 by 250 cells.
 
 | Command | Arguments | Result |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ Send them with `rwh send`, or use them as scenario steps. Cells are `[x, z]` or 
 | `listProbes` | none | All probe and command names. |
 | `log` | `minLevel` (`message`, `warning`, `error`), `count`, `contains` | `errors`, `warnings` and the matching `entries`. |
 | `quit` | none | Closes the game without saving. |
-| `runScenario` | `assembly`, `entryType`, `outputDirectory` | Loads a built scenarios assembly, runs the class and replies with its report. `rwh run` sends this for you. |
+| `runScenario` | `assembly`, `entryType`, `outputDirectory` | Loads a built scenarios assembly, runs the class and replies with its report. `archo run` sends this for you. |
 
 `op` is one of `eq`, `ne`, `lt`, `le`, `gt` or `ge`. Without an `op`, a condition holds when the value is `true` or a non-zero number. Game time passes only while the game runs, so set a speed before a `wait`.
 
@@ -194,64 +194,34 @@ Send them with `rwh send`, or use them as scenario steps. Cells are `[x, z]` or 
 
 ### Adding probes from your mod
 
-Add a class named `DevHarnessProbes` to your mod. You don't need a reference to the harness. Each public static method that takes no argument, or one JSON string, registers as `<AssemblyName>.<MethodName>`. It runs on the main thread, and its return value becomes the JSON result:
+Add a class named `ArchotechProbes` to your mod. You don't need a reference to the harness. Each public static method that takes no argument, or one JSON string, registers as `<AssemblyName>.<MethodName>`. It runs on the main thread, and its return value becomes the JSON result:
 
 ```csharp
-public static class DevHarnessProbes
+public static class ArchotechProbes
 {
     public static int MopsOnMap() =>
         Find.CurrentMap.listerThings.ThingsOfDef(ThingDef.Named("Janitor_Mop")).Count;
 }
 ```
 
-Call it with `rwh send probe '{"name":"JanitorsCloset.MopsOnMap"}'`. A mod that references `DevHarness.dll` can call `DevHarness.HarnessProbes.Register(name, json => resultJson)` instead.
-
-## JSON scenario format
-
-JSON step lists run the harness commands in order. They suit quick, linear checks; use a scenario class for anything with logic.
-
-```json
-{
-  "name": "janitor-basics",
-  "dlcs": ["biotech"],
-  "mods": [
-    { "dir": "../../JanitorsCloset/mod",
-      "build": { "command": "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj", "workingDir": "../../JanitorsCloset" } }
-  ],
-  "window": [1600, 900],
-  "quitWhenDone": true,
-  "steps": [
-    { "cmd": "buildRoom", "rect": [119, 119, 11, 9], "floor": "WoodPlankFloor", "door": [124, 119], "save": "room" },
-    { "cmd": "probe", "name": "filthCount", "args": { "rect": "${room.interior}" }, "save": "before" },
-    { "cmd": "wait", "probe": "filthCount", "args": { "rect": "${room.interior}" }, "path": "count", "op": "lt", "value": "${before.count}" },
-    { "cmd": "screenshot", "path": "after.png", "always": true }
-  ]
-}
-```
-
-- `dlcs`, `mods`, `window` and `quitWhenDone` apply only when `rwh run` starts the session. Paths are relative to the scenario file.
-- Every key of a step other than the ones below goes to the command as an argument.
-- `save` stores the step result under a name. `"${name.path}"` inserts a saved value in a later step, and keeps its JSON type when it fills the whole string. `${run.dir}` is the run folder.
-- `expect` (`path`, `op`, `value`) checks the result. A mismatch fails the step.
-- `optional: true` lets the scenario continue after the step fails.
-- `always: true` runs the step even after an earlier step failed. Use it for final screenshots.
-- A relative `path` is resolved against the run folder.
-- `windowCapture` (`path`) runs in the CLI. It captures the game window with `PrintWindow`, which needs the window to be visible but not focused.
-
-The exit code is 0 when every step that isn't optional passed.
+Call it with `archo send probe '{"name":"JanitorsCloset.MopsOnMap"}'`. A mod that references `ArchotechHarness.dll` can call `ArchotechHarness.HarnessProbes.Register(name, json => resultJson)` instead.
 
 ## Game launch details
 
-`rwh` starts `RimWorld.exe` with `-quicktest -savedatafolder=<profile> -WindowSize=W,H -harnessPort=N -NoCrashDialog -DisableLogStackTraces`. The quick-test start uses the Crashlanded scenario with Cassandra on Rough, on a random 250 by 250 map. The written Prefs.xml enables dev mode, opens a window instead of fullscreen, keeps the game running unfocused and mutes the sound.
+`archo` starts `RimWorld.exe` with `-quicktest -savedatafolder=<profile> -WindowSize=W,H -harnessPort=N -NoCrashDialog -DisableLogStackTraces`. The quick-test start uses the Crashlanded scenario with Cassandra on Rough, on a random 250 by 250 map. The written Prefs.xml enables dev mode, opens a window instead of fullscreen, keeps the game running unfocused and mutes the sound.
 
 ## Building and testing
 
 ```sh
-dotnet build RimWorldDevHarness.sln
-dotnet test Source/DevHarness.Cli.Tests
+dotnet build ArchotechHarness.sln
+dotnet test Source/ArchotechHarness.Cli.Tests
 ```
 
 The mod references the game's `Assembly-CSharp.dll`, `UnityStubs.dll` and `Waylith.dll` from `RIMWORLD_DIR`. This repo contains none of the game's files.
+
+## Mod icon
+
+`art/make_icon.py` draws `mod/About/ModIcon.png`. It needs Python with Pillow: `python art/make_icon.py mod/About/ModIcon.png`.
 
 ## Licence
 
