@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Builds the CLI and the harness mod on first use (or with RWH_REBUILD=1), then runs rwh.
+set -e
+root="$(cd "$(dirname "$0")" && pwd)"
+exe="$root/.bin/cli/rwh.exe"
+if [ ! -f "$exe" ] || [ ! -f "$root/mod/1.7/Assemblies/DevHarness.dll" ] || [ -n "$RWH_REBUILD" ]; then
+  dotnet build "$root/Source/DevHarness/DevHarness.csproj" -c Release --nologo -v q >&2
+  dotnet build "$root/Source/DevHarness.Cli/DevHarness.Cli.csproj" -c Release -o "$root/.bin/cli" --nologo -v q >&2
+fi
+exec "$exe" "$@"

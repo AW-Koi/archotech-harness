@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+mod/*/Assemblies/
+.harness/
+.bin/
+*.png
+!docs/**/*.png

@@ -1,0 +1,51 @@
+{
+  "name": "janitor-basics",
+  "description": "A colonist with a mop and only Cleaning enabled cleans blood and dirt out of a small wooden room.",
+  "dlcs": [],
+  "mods": [
+    {
+      "dir": "../../JanitorsCloset/mod",
+      "build": {
+        "command": "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj --source https://api.nuget.org/v3/index.json",
+        "workingDir": "../../JanitorsCloset"
+      }
+    }
+  ],
+  "window": [1600, 900],
+  "quitWhenDone": true,
+  "steps": [
+    { "cmd": "status", "expect": { "path": "mapLoaded", "op": "eq", "value": true } },
+    { "cmd": "speed", "speed": "paused" },
+    { "cmd": "buildRoom", "rect": [119, 119, 11, 9], "stuff": "WoodLog", "floor": "WoodPlankFloor", "door": [124, 119], "save": "room" },
+    {
+      "cmd": "spawnPawn", "name": "Mopper", "cell": [124, 123],
+      "traits": ["Industriousness:1"], "work": { "Cleaning": 1 }, "onlyWork": true
+    },
+    { "cmd": "equip", "pawn": "Mopper", "def": "Janitor_Mop", "expect": { "path": "slot", "op": "eq", "value": "equipment" } },
+    { "cmd": "removeColonists", "keep": ["Mopper"] },
+    { "cmd": "spawnFilth", "def": "Filth_Blood", "rect": "${room.interior}", "count": 12, "seed": 1 },
+    { "cmd": "spawnFilth", "def": "Filth_Dirt", "rect": "${room.interior}", "count": 12, "seed": 2 },
+    {
+      "cmd": "probe", "name": "filthCount", "args": { "rect": "${room.interior}", "defs": ["Filth_Blood", "Filth_Dirt"] },
+      "save": "before", "expect": { "path": "count", "op": "gt", "value": 0 }
+    },
+    { "cmd": "camera", "cell": "${room.center}", "zoom": 13 },
+    { "cmd": "screenshot", "path": "before.png" },
+    { "cmd": "windowCapture", "path": "before-window.png", "optional": true },
+    { "cmd": "speed", "speed": "superfast" },
+    {
+      "cmd": "wait", "probe": "filthCount", "args": { "rect": "${room.interior}", "defs": ["Filth_Blood", "Filth_Dirt"] },
+      "path": "count", "op": "lt", "value": "${before.count}", "timeoutSeconds": 120
+    },
+    {
+      "cmd": "wait", "probe": "filthCount", "args": { "rect": "${room.interior}", "defs": ["Filth_Blood", "Filth_Dirt"] },
+      "path": "count", "op": "le", "value": 4, "timeoutSeconds": 150, "optional": true
+    },
+    { "cmd": "speed", "speed": "paused", "always": true },
+    { "cmd": "probe", "name": "pawn", "args": { "pawn": "Mopper" }, "always": true },
+    { "cmd": "probe", "name": "filthCount", "args": { "rect": "${room.interior}", "defs": ["Filth_Blood", "Filth_Dirt"] }, "always": true },
+    { "cmd": "camera", "cell": "${room.center}", "zoom": 13, "always": true },
+    { "cmd": "screenshot", "path": "after.png", "always": true },
+    { "cmd": "log", "minLevel": "error", "count": 20, "always": true }
+  ]
+}
