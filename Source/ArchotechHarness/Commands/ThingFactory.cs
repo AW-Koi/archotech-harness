@@ -14,7 +14,7 @@ public static class ThingFactory
             Arguments.String(args, "stuff") is { } stuff ? Arguments.Def<ThingDef>(stuff) : null,
             Arguments.String(args, "quality") is { } quality ? Enum.Parse<QualityCategory>(quality, ignoreCase: true) : null);
 
-    /// <summary>Without stuff, a thing made from stuff uses the def's default stuff.</summary>
+    /// <summary>Without stuff, a thing made from stuff uses the def's default stuff. Art gets its title and description.</summary>
     public static Thing Make(ThingDef def, ThingDef stuff = null, QualityCategory? quality = null)
     {
         var thing = ThingMaker.MakeThing(def, def.MadeFromStuff ? stuff ?? GenStuff.DefaultStuffFor(def) : null);
@@ -22,6 +22,8 @@ public static class ThingFactory
         {
             thing.TryGetComp<CompQuality>()?.SetQuality(category, ArtGenerationContext.Colony);
         }
+
+        thing.TryGetComp<CompArt>()?.InitializeArt(ArtGenerationContext.Colony);
 
         return thing;
     }

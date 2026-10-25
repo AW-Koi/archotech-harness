@@ -14,6 +14,8 @@ public sealed class ThingBuilder
     private int _count = 1;
     private IntVec3? _cell;
     private Pawn _pawn;
+    private Rot4? _facing;
+    private readonly ThingSetup _setup = new();
 
     internal ThingBuilder(ThingDef def, string caller)
     {
@@ -48,6 +50,48 @@ public sealed class ThingBuilder
         return this;
     }
 
+    /// <summary>Spawns a building exactly At its cell with this rotation; throws when the cell is blocked.</summary>
+    public ThingBuilder Facing(Rot4 rot)
+    {
+        _facing = rot;
+        return this;
+    }
+
+    /// <summary>Fills its fuel tank to capacity.</summary>
+    public ThingBuilder Fuelled()
+    {
+        _setup.Fuelled = true;
+        return this;
+    }
+
+    /// <summary>Fills its battery.</summary>
+    public ThingBuilder Charged()
+    {
+        _setup.Charged = true;
+        return this;
+    }
+
+    /// <summary>For a plant pot or other grower: sets the plant to grow and sows it fully grown.</summary>
+    public ThingBuilder Growing(ThingDef plant)
+    {
+        _setup.Crop = plant;
+        return this;
+    }
+
+    /// <summary>Adds a do-forever bill to a work table; repeatable.</summary>
+    public ThingBuilder WithBill(RecipeDef recipe)
+    {
+        _setup.Bills.Add(recipe);
+        return this;
+    }
+
+    /// <summary>Puts stacks of the thing on a storage building's cells, such as a shelf; repeatable.</summary>
+    public ThingBuilder Holding(ThingDef def, int count)
+    {
+        _setup.Stored.Add(new StoredStack(def, count));
+        return this;
+    }
+
     /// <summary>A weapon is equipped, apparel is worn and anything else goes to the pawn's inventory.</summary>
     public ThingBuilder GivenTo(Pawn pawn)
     {
@@ -63,10 +107,20 @@ public sealed class ThingBuilder
             throw new HarnessException($"Spawn.Thing({_def.defName}) needs exactly one of At(cell) or GivenTo(pawn).");
         }
 
+        if (_facing != null && (_def.category != ThingCategory.Building || _cell == null))
+        {
+            throw new HarnessException($"Spawn.Thing({_def.defName}).Facing places a building At a cell; it is not a building, or has no cell.");
+        }
+
+        _setup.Validate(_def);
         var thing = ThingFactory.Make(_def, _stuff, _quality);
         if (_cell is { } cell)
         {
-            return SpawnThingCommand.Place(thing, cell, World.Map, _count);
+            var spawned = _facing is { } rotation
+                ? SpawnThingCommand.PlaceExactly(thing, cell, rotation, World.Map)
+                : SpawnThingCommand.Place(thing, cell, World.Map, _count);
+            _setup.Apply(spawned);
+            return spawned;
         }
 
         thing.stackCount = System.Math.Min(_count, thing.def.stackLimit);

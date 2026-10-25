@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using RimWorld;
@@ -23,7 +24,7 @@ public static class BuildRoomCommand
             Wall = Arguments.Def<ThingDef>(Arguments.String(args, "wall", ThingDefOf.Wall.defName)),
             Stuff = Arguments.Def<ThingDef>(Arguments.String(args, "stuff", ThingDefOf.WoodLog.defName)),
             Floor = Arguments.String(args, "floor") is { } floorName ? Arguments.Def<TerrainDef>(floorName) : null,
-            Door = args["door"] is { } doorNode ? Arguments.ToCell(doorNode, map, "door") : null,
+            Doors = args["door"] is { } doorNode ? [Arguments.ToCell(doorNode, map, "door")] : [],
             DoorDef = Arguments.Def<ThingDef>(Arguments.String(args, "doorDef", ThingDefOf.Door.defName)),
             Roof = Arguments.Bool(args, "roof", false),
             Home = Arguments.Bool(args, "home", true),
@@ -40,10 +41,11 @@ public static class BuildRoomCommand
 
     public static void Build(Map map, RoomPlan room)
     {
-        Clear(map, room.Rect.ExpandedBy(1).ClipInsideMap(map));
-        foreach (var cell in room.Rect.EdgeCells)
+        var keptDoors = room.Adjoining ? room.Rect.EdgeCells.Where(c => c.GetDoor(map) != null).ToHashSet() : [];
+        Clear(map, room.Adjoining ? room.Rect.ClipInsideMap(map) : room.Rect.ExpandedBy(1).ClipInsideMap(map), keptDoors);
+        foreach (var cell in room.Rect.EdgeCells.Where(c => !keptDoors.Contains(c)))
         {
-            var def = cell == room.Door ? room.DoorDef : room.Wall;
+            var def = room.Doors.Contains(cell) ? room.DoorDef : room.Wall;
             var building = ThingMaker.MakeThing(def, def.MadeFromStuff ? room.Stuff ?? GenStuff.DefaultStuffFor(def) : null);
             building.SetFaction(Faction.OfPlayer);
             GenSpawn.Spawn(building, cell, map);
@@ -67,6 +69,11 @@ public static class BuildRoomCommand
             }
         }
 
+        if (room.Powered)
+        {
+            PowerConduits.Lay(map, room.Rect.EdgeCells, ThingDefOf.HiddenConduit ?? ThingDefOf.PowerConduit);
+        }
+
         if (room.Home)
         {
             foreach (var cell in room.Rect)
@@ -76,11 +83,15 @@ public static class BuildRoomCommand
         }
     }
 
-    private static void Clear(Map map, CellRect area)
+    /// <summary>Destroys everything but pawns, unroofs and unfogs, and swaps water or impassable ground for soil.</summary>
+    public static void Clear(Map map, CellRect area) => Clear(map, area, []);
+
+    private static void Clear(Map map, CellRect area, HashSet<IntVec3> keepThingsOn)
     {
         foreach (var cell in area)
         {
-            foreach (var thing in cell.GetThingList(map).Where(t => t is not Pawn && t.def.destroyable).ToList())
+            var things = keepThingsOn.Contains(cell) ? [] : cell.GetThingList(map).Where(t => t is not Pawn && t.def.destroyable).ToList();
+            foreach (var thing in things)
             {
                 thing.Destroy();
             }

@@ -33,4 +33,24 @@ public static class SpawnThingCommand
             ? placed
             : throw new HarnessException($"Could not place {thing.def.defName} near {cell}.");
     }
+
+    /// <summary>Spawns the building on the cell with the rotation, owned by the player, replacing what is in the way.</summary>
+    /// <remarks>Throws only when the footprint leaves the map.</remarks>
+    public static Thing PlaceExactly(Thing building, IntVec3 cell, Rot4 rotation, Map map)
+    {
+        var footprint = GenAdj.OccupiedRect(cell, rotation, building.def.Size);
+        if (!footprint.InBounds(map))
+        {
+            throw new HarnessException($"{building.def.defName} at {cell} facing {rotation.ToStringHuman()} reaches off the map.");
+        }
+
+        SpawnConflict.ClearFor(footprint, map);
+
+        if (building.def.CanHaveFaction)
+        {
+            building.SetFactionDirect(Faction.OfPlayer);
+        }
+
+        return GenSpawn.Spawn(building, cell, map, rotation);
+    }
 }

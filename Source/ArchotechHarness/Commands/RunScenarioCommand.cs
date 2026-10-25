@@ -16,7 +16,12 @@ public static class RunScenarioCommand
 
     public static CommandResult Run(JsonObject args)
     {
-        Arguments.CurrentMap();
+        if (Find.CurrentMap == null && MapGenerationFailure.Last is { } failure)
+        {
+            throw new HarnessException($"No map is loaded because the last one failed to generate: {failure}");
+        }
+
+        var map = Arguments.CurrentMap();
         ScriptSession.Current?.End();
         var assembly = Assembly.LoadFrom(Arguments.RequiredString(args, "assembly"));
         DefOfBinder.Bind(DefOfBinder.DefOfClasses(assembly));
@@ -27,7 +32,13 @@ public static class RunScenarioCommand
             throw new HarnessException($"{typeName} does not derive from {nameof(HarnessScenario)}.");
         }
 
+        if (ScenarioBiome.Resolve(type) is { } biome && map.Biome != biome)
+        {
+            throw new HarnessException($"{type.Name} asks for [Biome(\"{biome.defName}\")], but this colony is on {map.Biome.defName}; run it with archo, which starts games on that biome.");
+        }
+
         var session = ScriptSession.Begin(Arguments.RequiredString(args, "outputDirectory"));
+        session.AllowedErrors = GameErrorAllowList.From(type.GetCustomAttributes<AllowGameErrorsAttribute>());
         if (Arguments.Float(args, "recordFps", 0) is var fps and > 0)
         {
             session.StartRecording(System.IO.Path.Combine(session.OutputDirectory, "frames"), fps);

@@ -9,7 +9,7 @@ using Verse.Profile;
 namespace ArchotechHarness.Commands;
 
 /// <summary>Throws the current game away and starts a fresh quick-test colony, as the -quicktest start does.</summary>
-/// <remarks>Arguments: "mapSize" (default 250), "planetCoverage" (default 0.05), "seed". Replies once the new map is playable.</remarks>
+/// <remarks>Arguments: "mapSize" (default 250), "planetCoverage" (default 0.05, or 0.3 with a biome), "seed", "biome" (a BiomeDef name; default any). Replies once the new map is playable.</remarks>
 public static class NewGameCommand
 {
     private const double TimeoutSeconds = 180;
@@ -18,8 +18,10 @@ public static class NewGameCommand
     {
         ScriptSession.Current?.End();
         var mapSize = Arguments.Int(args, "mapSize", 250);
-        var coverage = Arguments.Float(args, "planetCoverage", 0.05f);
+        StartingTile.Biome = Arguments.String(args, "biome");
+        var coverage = Arguments.Float(args, "planetCoverage", StartingTile.Biome == null ? 0.05f : 0.3f);
         var seed = Arguments.String(args, "seed") ?? GenText.RandomSeedString();
+        MapGenerationFailure.Last = null;
         var previous = Current.Game;
         var started = DateTime.UtcNow;
 
@@ -45,6 +47,11 @@ public static class NewGameCommand
                     ["seed"] = seed,
                     ["mapSize"] = new JsonArray(Find.CurrentMap.Size.x, Find.CurrentMap.Size.z),
                 };
+            }
+
+            if (MapGenerationFailure.Last is { } failure)
+            {
+                throw new HarnessException($"The new map failed to generate: {failure}");
             }
 
             return DateTime.UtcNow - started > TimeSpan.FromSeconds(TimeoutSeconds)

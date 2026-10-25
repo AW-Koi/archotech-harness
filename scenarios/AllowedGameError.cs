@@ -1,0 +1,21 @@
+namespace Scenarios;
+
+/// <summary>A deliberate Log.Error fails a scenario unless [AllowGameErrors] accepts it, as it does here.</summary>
+[AllowGameErrors(DeliberateError)]
+public sealed class AllowedGameError : HarnessScenario
+{
+    private const string DeliberateError = "Deliberate error from the AllowedGameError sample";
+
+    public override Task Run()
+    {
+        Log.Error(DeliberateError);
+        Log.Error(DeliberateError);
+        Find.WindowStack.TryRemove(typeof(LudeonTK.EditWindow_Log), doCloseSound: false);
+
+        var errors = ScriptSession.Current!.GameErrors;
+        Check(errors.Distinct.Single(e => e.Text == DeliberateError).Count == 2);
+        Check(errors.FailureMessage(GameErrorAllowList.None) != null);
+        Check(errors.FailureMessage(ScriptSession.Current.AllowedErrors) == null);
+        return Task.CompletedTask;
+    }
+}

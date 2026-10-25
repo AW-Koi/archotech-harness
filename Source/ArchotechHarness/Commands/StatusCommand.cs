@@ -18,6 +18,7 @@ public static class StatusCommand
             ["mapLoaded"] = playing,
             ["devMode"] = Prefs.DevMode,
             ["version"] = VersionControl.CurrentVersionStringWithRev,
+            ["mapGenerationError"] = MapGenerationFailure.Last?.ToString(),
             ["activeMods"] = new JsonArray(ModsConfig.ActiveModsInLoadOrder.Select(m => (JsonNode)m.PackageId).ToArray()),
         };
         if (playing)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RimWorld;
 using Verse;
 
@@ -14,11 +15,17 @@ public sealed class RoomPlan(CellRect rect)
 
     public TerrainDef Floor { get; init; }
 
-    public IntVec3? Door { get; init; }
+    public IReadOnlyCollection<IntVec3> Doors { get; init; } = [];
 
     public ThingDef DoorDef { get; init; } = ThingDefOf.Door;
 
     public bool Roof { get; init; }
 
     public bool Home { get; init; } = true;
+
+    /// <summary>Lays conduits under the walls and doors: hidden ones where the game has them.</summary>
+    public bool Powered { get; init; }
+
+    /// <summary>Clears only inside the rectangle and keeps doors already on its walls.</summary>
+    public bool Adjoining { get; init; }
 }

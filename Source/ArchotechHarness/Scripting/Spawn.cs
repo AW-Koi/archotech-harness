@@ -18,6 +18,14 @@ public static class Spawn
     public static ThingBuilder Thing(ThingDef def, [CallerFilePath] string file = null, [CallerLineNumber] int line = 0) =>
         new(def, $"{Path.GetFileName(file)}:{line}");
 
+    /// <summary>Starts a plant in the ground, such as a tree or flower; place it At a cell, then finish with Spawn().</summary>
+    public static PlantBuilder Plant(ThingDef plant, [CallerFilePath] string file = null, [CallerLineNumber] int line = 0) =>
+        new(plant, $"{Path.GetFileName(file)}:{line}");
+
+    /// <summary>Starts an animal of this kind; place it At a cell, then finish with Spawn().</summary>
+    public static AnimalBuilder Animal(PawnKindDef kind, [CallerFilePath] string file = null, [CallerLineNumber] int line = 0) =>
+        new(kind, $"{Path.GetFileName(file)}:{line}");
+
     /// <summary>Makes filth on the cell, or thickens filth already there; null when the cell takes no filth.</summary>
     public static Filth Filth(ThingDef def, IntVec3 at, int thickness = 1) =>
         SpawnFilthCommand.Spawn(World.Map, def, [at], thickness).FirstOrDefault();

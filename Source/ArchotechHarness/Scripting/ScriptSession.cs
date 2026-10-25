@@ -15,7 +15,6 @@ public sealed class ScriptSession
     private readonly JsonObject _notes = new();
     private readonly JsonArray _checks = new();
     private readonly JsonArray _shots = new();
-    private readonly int _errorsAtStart;
     private readonly DateTime _started = DateTime.UtcNow;
 
     private string _framesDirectory;
@@ -27,7 +26,6 @@ public sealed class ScriptSession
     {
         OutputDirectory = outputDirectory;
         Builders = new PendingBuilders(description => Timeline.Add("build", description));
-        _errorsAtStart = Log.Messages.Count(m => m.type == LogMessageType.Error);
     }
 
     public static ScriptSession Current { get; private set; }
@@ -38,7 +36,16 @@ public sealed class ScriptSession
 
     public bool AnyCheckFailed { get; private set; }
 
+    /// <summary>While set, no incidents, wake-ups, signal actions or letters happen and the weather stays as it is.</summary>
+    public bool Calm { get; set; }
+
     public PendingBuilders Builders { get; }
+
+    /// <summary>Errors the game logged since the scenario started.</summary>
+    public GameErrorTally GameErrors { get; } = new();
+
+    /// <summary>The errors the scenario's [AllowGameErrors] attributes accept; any other fails it.</summary>
+    public GameErrorAllowList AllowedErrors { get; set; } = GameErrorAllowList.None;
 
     public ScenarioTimeline Timeline { get; } = new();
 
@@ -74,9 +81,11 @@ public sealed class ScriptSession
             UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(_framesDirectory, $"frame_{_frameIndex++:D5}.png"));
         }
 
-        if (HeldSpeed is { } speed && Find.TickManager is { } ticks && ticks.CurTimeSpeed != speed && Verse.Current.ProgramState == ProgramState.Playing)
+        if (HeldSpeed is { } speed
+            && CanHoldSpeed(Verse.Current.ProgramState, Verse.Current.Game?.World != null, Find.CurrentMap != null, LongEventHandler.AnyEventNowOrWaiting)
+            && Find.TickManager.CurTimeSpeed != speed)
         {
-            ticks.CurTimeSpeed = speed;
+            Find.TickManager.CurTimeSpeed = speed;
         }
 
         for (var i = _waits.Count - 1; i >= 0; i--)
@@ -103,6 +112,10 @@ public sealed class ScriptSession
         }
     }
 
+    /// <summary>Whether the game is playable, so setting the speed touches no half-loaded world, such as during a reload.</summary>
+    public static bool CanHoldSpeed(ProgramState state, bool worldLoaded, bool mapLoaded, bool loading) =>
+        state == ProgramState.Playing && worldLoaded && mapLoaded && !loading;
+
     public void Note(string key, object value, int line = 0)
     {
         _notes[key] = value == null ? null : JsonSerializer.SerializeToNode(value, value.GetType());
@@ -124,7 +137,9 @@ public sealed class ScriptSession
 
     public JsonObject Report(Task script)
     {
-        var errors = Log.Messages.Where(m => m.type == LogMessageType.Error).Skip(_errorsAtStart).Select(m => (JsonNode)m.text).ToArray();
+        var errors = GameErrors.Distinct
+            .Select(e => (JsonNode)new JsonObject { ["text"] = e.Text, ["count"] = e.Count, ["allowed"] = AllowedErrors.Allows(e.Text) })
+            .ToArray();
         var failure = script.Exception?.InnerException;
         if (failure == null)
         {
@@ -134,12 +149,13 @@ public sealed class ScriptSession
             }
         }
 
+        var errorFailure = GameErrors.FailureMessage(AllowedErrors);
         return new JsonObject
         {
-            ["passed"] = failure == null && !AnyCheckFailed,
+            ["passed"] = failure == null && !AnyCheckFailed && errorFailure == null,
             ["seconds"] = Math.Round((DateTime.UtcNow - _started).TotalSeconds, 2),
             ["tick"] = Find.TickManager?.TicksGame,
-            ["error"] = failure == null ? null : $"{failure.GetType().Name}: {failure.Message}",
+            ["error"] = failure == null ? errorFailure : $"{failure.GetType().Name}: {failure.Message}",
             ["at"] = failure == null ? null : ScriptFrames(failure),
             ["checks"] = _checks.DeepClone(),
             ["notes"] = _notes.DeepClone(),

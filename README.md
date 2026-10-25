@@ -64,7 +64,36 @@ Save it in `scenarios/` and run it with `./archo run scenarios/CleanerCleans.cs`
 
 ### Builders
 
-`Build.Room()`, `Spawn.Colonist()` and `Spawn.Thing(def)` return builders. Chain the options you need, then finish with `.Build()` or `.Spawn()`. Nothing happens until that call, and a builder you never finish fails the run.
+`Build.Room()`, `Build.Stockpile(area)`, `Build.GrowingZone(area)`, `Spawn.Colonist()` and `Spawn.Thing(def)` return builders. Chain the options you need, then finish with `.Build()` or `.Spawn()`. Nothing happens until that call, and a builder you never finish fails the run.
+
+Building is best-effort and later commands win. A building, plant, room, floor or zone replaces what was there before it, and a zone loses cells that a later building covers. Only programmer errors throw, such as a def of the wrong kind or a missing required option.
+
+### Laying out a colony
+
+- `World.Calm()` stops incidents (raids, visitors, mad animals, weather events), wake-ups, signal actions such as ambushes, and letters for the rest of the scenario, and keeps the weather clear. Call it first.
+- `World.RemoveHostiles()` removes every pawn hostile to the player, dormant pawns such as ancient-danger sleepers, and strangers held in caskets and pods. It also removes what wakes or spawns threats: triggers, signal actions, mech cluster and other hostile buildings, hives and spawners. It returns how many things it removed.
+- `Build.Clearing(rect)` makes an area open, walkable and unroofed. It removes buildings (ancient ones included), rock, plants, items and every pawn that isn't the player's, and turns water into soil.
+- `Build.Room().Covering(rect)` sets a room's bounds, walls included, in place of `.CenteredOn` and `.Size`. Call `.WithDoor(side)` or `.WithDoorAt(cell)` once per door. A door cell off the walls, or on a corner, fails the build.
+- `.Adjoining()` clears only inside the room's own bounds, so it can share a wall with a room built before it. A door already on that wall stays a door.
+- `Spawn.Thing(def).Facing(rot).At(cell)` spawns a building exactly on the cell with that rotation, owned by the player. It replaces any buildings, items and plants in the way.
+- `Build.Stockpile(rect)` makes a stockpile; `.Preset(preset)` picks the storage settings. `Build.GrowingZone(rect).Planting(plant)` makes a growing zone; `.Grown(0.8f)` sows the crop on every cell at that growth, laying soil where the ground can't grow it.
+- `Build.Floor(rect, def)` lays a floor, such as a path or patio.
+- `Clock.SkipToHour(9)` jumps the clock to that hour, without simulating the time between, so screenshots are in daylight. `Camera.Frame(rect)` frames any area.
+- `Spawn.Thing(def)` also takes `.Fuelled()`, `.Charged()` (a battery), `.Growing(plant)` (a plant pot, fully grown), `.WithBill(recipe)` (a do-forever bill; repeatable) and `.Holding(def, count)` (stacks on a shelf; repeatable). Art always gets a title and description.
+- `Spawn.Plant(def).At(cell).Grown(0.5f).Spawn()` plants a tree or flower in the ground, fully grown without `.Grown`. `Spawn.Animal(kind).At(cell).Tame().WithName("Whiskers").Spawn()` adds an animal; `.Tame()` makes it the player's.
+- `Build.Path(from, to).Of(floor).Wide(2).Build()` lays an L-shaped path, along x then along z, one cell wide without `.Wide`.
+- `Build.InWall(def, cell, facing)` replaces a wall cell with a cooler, vent or other wall-mounted building. It fails if the cell holds no wall.
+- `Build.Room().Powered()` hides conduits in the walls, so powered things inside connect. `Build.Conduit(from, to)` lays a visible L-shaped conduit, such as from a generator. `World.Home(rect)` marks home area.
+
+### Furnishing presets
+
+Presets furnish a built room in one call, on free floor only. They never use the cell inside a door, interaction cells or the space beside a bed. Each piece tries its preferred spot, then corners, wall-side cells and any free floor. A piece that still doesn't fit is left out and noted in the report, such as "placed 0 of 1 plant pots, no free floor".
+
+- `Furnish.Bedroom(room)` puts the bed's head against the wall opposite the door, an end table either side and a dresser. It takes `.Bed(def)`, `.MadeOf(stuff)`, `.Floor(def)`, `.Lamp()`, `.Plants(plant)`, `.Art(sculpture, stuff)` and `.Owner(pawns)`.
+- `Furnish.Dining(room, area)` fills the area with tables and chairs facing them. It takes `.Table(def)` (`Table2x2c` without it) and `.MadeOf(stuff)`.
+- `Decorate.Room(room)` takes `.PlantPots(plant)` (a pot in each free corner), `.Lamps()` (enough standing lamps to light the room) and `.Art(sculpture, stuff)`.
+
+Each `.Build()` returns a `FurnishedRoom` with the `Things` it placed, `Bed` and `Of(def)`. Place work tables and other fittings before `Decorate.Room`, so it keeps their interaction cells clear.
 
 ### Waiting and checking
 
@@ -72,6 +101,12 @@ Save it in `scenarios/` and run it with `./archo run scenarios/CleanerCleans.cs`
 - `await Ticks(n)` waits for game time. The game starts paused, so set `Clock.Speed` first.
 - `await Reload()` saves the game, loads it back and waits until the map is playable. Look up pawns and things again afterwards, because the old references go stale.
 - `Check(condition)` records a check and carries on. `Require(condition)` stops the scenario when it fails. The report shows the source text of each check.
+
+### Game errors
+
+A scenario fails when the game logs an error while it runs, even if every check passes. The report lists each distinct error with its count. Errors from loading the game are reported separately, under "Game load".
+
+Put `[AllowGameErrors]` on the class to let it pass anyway, or `[AllowGameErrors("text")]` to accept only errors that contain that text (case-sensitive). Repeat the attribute for several texts.
 
 ### Screenshots and notes
 
@@ -108,7 +143,7 @@ Declare the mods every scenario loads once, as `ArchoMod` items in the scenarios
 
 The harness reads these items as plain XML, so it skips conditions, imports and `$(...)` properties.
 
-Attributes on a class add to the project's mods for that scenario. Their paths are relative to the scenario file. A mod declared twice loads once.
+Attributes on a class add to the project's mods for that scenario. Their paths are relative to the scenario file. A mod declared twice loads once. Scenarios with different mods, DLCs or biome run in separate games.
 
 | Attribute | Does |
 | --- | --- |
@@ -116,6 +151,7 @@ Attributes on a class add to the project's mods for that scenario. Their paths a
 | `[Mod("../mod", Build = "dotnet build", BuildIn = "..")]` | Also builds the mod before the run. |
 | `[RequiresMod("ferny.ProgressionEducation")]` | Loads an installed mod by package id, with its dependencies. Repeat it for several mods. See [Compatibility scenarios](#compatibility-scenarios). |
 | `[Dlc("biotech")]` | Activates DLCs: `royalty`, `ideology`, `biotech`, `anomaly`, `odyssey`. |
+| `[Biome(nameof(BiomeDefOf.TemperateForest))]` | Starts the colony on that biome, on flat or small hills averaging 10 to 25C where the world has such a tile. A name that isn't a loaded biome colonies can settle fails the run. |
 
 ### Compatibility scenarios
 
@@ -214,16 +250,22 @@ When `archo test` boots a game, it reads the errors the game logged while it loa
 
 | Member | Does |
 | --- | --- |
-| `Build.Room()` | Builds a walled room. Requires `.Size(w, h)`; takes `.CenteredOn(cell)`, `.WithFloor(def)`, `.WithWalls(def)`, `.MadeOf(stuff)`, `.WithDoor(rot)` and `.Roofed()`. Finish with `.Build()`. |
+| `Build.Room()` | Builds a walled room. Requires `.Size(w, h)` or `.Covering(rect)`; takes `.CenteredOn(cell)`, `.WithFloor(def)`, `.WithWalls(def)`, `.MadeOf(stuff)`, `.WithDoor(rot)`, `.WithDoorAt(cell)`, `.Adjoining()`, `.Powered()` and `.Roofed()`. Finish with `.Build()`. |
+| `Build.Stockpile(rect)`, `Build.GrowingZone(rect)` | Makes a zone. A stockpile takes `.Preset(preset)`; a growing zone requires `.Planting(plant)` and takes `.Grown(growth)`. Finish with `.Build()`. |
+| `Build.Floor(rect, def)`, `Build.Clearing(rect)` | Lays a floor, or clears an area to open ground. |
+| `Build.Path(from, to)`, `Build.InWall(def, cell, facing)`, `Build.Conduit(from, to)` | Lays an L-shaped path, mounts a building in a wall, or lays a conduit. |
+| `Furnish.Bedroom(room)`, `Furnish.Dining(room, area)`, `Decorate.Room(room)` | Furnishes or decorates a room. Finish with `.Build()`. |
+| `Spawn.Plant(def)`, `Spawn.Animal(kind)` | Plants a tree or flower, or adds an animal. Finish with `.Spawn()`. |
 | `Spawn.Colonist()` | Spawns a colonist. Takes `.WithName`, `.At(cell)` or `.Inside(room)`, `.Doing(workTypes)`, `.KeepingOtherWork()`, `.IncapableOf(tags)`, `.WithTrait`, `.WithSkill` and `.OfKind`. Finish with `.Spawn()`. |
-| `Spawn.Thing(def)` | Makes a thing. Takes `.At(cell)` or `.GivenTo(pawn)`, `.MadeOf`, `.OfQuality` and `.Stack`. Finish with `.Spawn()`. |
+| `Spawn.Thing(def)` | Makes a thing. Takes `.At(cell)` or `.GivenTo(pawn)`, `.MadeOf`, `.OfQuality`, `.Stack` and, for a building, `.Facing(rot)`, `.Fuelled()`, `.Charged()`, `.Growing(plant)`, `.WithBill(recipe)` and `.Holding(def, count)`. Finish with `.Spawn()`. |
 | `Spawn.Filth(def, cell)` | Places filth. |
 | `room.Scatter(def, count)`, `room.Filth(defs)` | Spreads filth over a room, or lists the filth in it. |
 | `World.Map`, `World.Center`, `World.Filth`, `World.Things`, `World.Pawn` | The current map and queries over it. |
+| `World.Calm()`, `World.RemoveHostiles()`, `World.Home(rect)` | Stops incidents and keeps clear weather, removes hostile and dormant pawns, or marks home area. |
 | `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. |
 | `pawn.CurrentJob()`, `pawn.SetWork`, `pawn.HasThought`, `pawn.Memories`, `pawn.FloatMenuAt(cell)` | Pawn shortcuts. |
-| `Camera.Look`, `Camera.Frame(room)`, `Camera.Follow(pawn)` | Points the camera. |
-| `Clock.Speed`, `Clock.Tick` | Game speed and tick. |
+| `Camera.Look`, `Camera.Frame(room)`, `Camera.Frame(rect)`, `Camera.Follow(pawn)` | Points the camera. |
+| `Clock.Speed`, `Clock.Tick`, `Clock.SkipToHour(hour)` | Game speed and tick, and a jump to an hour of the day. |
 | `Until`, `Ticks`, `Frames` | Waits. |
 | `Check`, `Require`, `Note`, `Shot` | Records checks, values and screenshots. |
 
