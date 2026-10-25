@@ -37,12 +37,19 @@ public sealed class MainThreadContext : SynchronizationContext
         }
     }
 
-    public void Drain() => Run(() =>
+    /// <summary>Runs the continuations queued so far and returns how many ran.</summary>
+    public int Drain()
     {
-        var pending = _queue.Count;
-        while (pending-- > 0 && _queue.TryDequeue(out var item))
+        var ran = 0;
+        Run(() =>
         {
-            item.Callback(item.State);
-        }
-    });
+            var pending = _queue.Count;
+            while (pending-- > 0 && _queue.TryDequeue(out var item))
+            {
+                item.Callback(item.State);
+                ran++;
+            }
+        });
+        return ran;
+    }
 }

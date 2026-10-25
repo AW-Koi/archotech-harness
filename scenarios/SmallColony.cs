@@ -5,6 +5,7 @@ public sealed class SmallColony : HarnessScenario
 {
     public override async Task Run()
     {
+        // A calm world with a cleared yard
         Clock.Speed = TimeSpeed.Paused;
         World.Calm();
         Note("hostilesRemoved", World.RemoveHostiles());
@@ -12,6 +13,7 @@ public sealed class SmallColony : HarnessScenario
         var yard = new CellRect(c.x - 13, c.z - 10, 30, 20);
         Build.Clearing(yard);
 
+        // A bedroom and a dining room that share a wall and a door
         var bedroom = Build.Room()
             .Covering(new CellRect(c.x - 10, c.z, 7, 6))
             .WithFloor(TerrainDefOf.WoodPlankFloor)
@@ -20,7 +22,6 @@ public sealed class SmallColony : HarnessScenario
             .Roofed()
             .Build();
         var sharedDoor = new IntVec3(bedroom.Bounds.maxX, 0, bedroom.Center.z);
-
         var diningRoom = Build.Room()
             .Covering(new CellRect(bedroom.Bounds.maxX, c.z, 9, 6))
             .WithFloor(TerrainDefOf.WoodPlankFloor)
@@ -29,12 +30,12 @@ public sealed class SmallColony : HarnessScenario
             .Roofed()
             .Build();
 
+        // A bed, a table and two chairs facing it
         var bed = Spawn.Thing(ThingDefOf.Bed)
             .MadeOf(ThingDefOf.WoodLog)
             .Facing(Rot4.South)
             .At(new IntVec3(bedroom.Interior.minX + 1, 0, bedroom.Interior.maxZ))
             .Spawn();
-
         var table = Spawn.Thing(ThingDefOf.Table2x2c)
             .MadeOf(ThingDefOf.WoodLog)
             .Facing(Rot4.North)
@@ -67,6 +68,7 @@ public sealed class SmallColony : HarnessScenario
         Build.Floor(new CellRect(c.x, c.z - 8, 1, 8), TerrainDefOf.PavedTile);
         Build.Floor(new CellRect(c.x + 1, c.z - 2, 10, 1), TerrainDefOf.PavedTile);
 
+        // A farmer by the field and a hauler indoors
         var farmer = Spawn.Colonist()
             .WithName("Farmer")
             .At(new IntVec3(fieldArea.maxX + 1, 0, fieldArea.CenterCell.z))
@@ -79,6 +81,7 @@ public sealed class SmallColony : HarnessScenario
             .Spawn();
         Colonists.RemoveAllExcept(farmer, hauler);
 
+        // Everything stands where it was put, facing the right way
         var potatoes = World.Things(ThingDefOf.Plant_Potato, fieldArea).OfType<Plant>().ToList();
         Check(sharedDoor.GetDoor(World.Map) != null);
         Check(bed.Rotation == Rot4.South);
@@ -89,6 +92,7 @@ public sealed class SmallColony : HarnessScenario
         Check(World.Map.zoneManager.ZoneAt(fieldArea.CenterCell) == field);
         Check(new IntVec3(c.x, 0, c.z - 4).GetTerrain(World.Map) == TerrainDefOf.PavedTile);
 
+        // The homestead by daylight
         Clock.SkipToHour(9);
         Check(GenLocalDate.HourOfDay(World.Map) == 9);
         Camera.Frame(yard);

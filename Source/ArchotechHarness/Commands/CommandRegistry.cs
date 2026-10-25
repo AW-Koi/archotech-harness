@@ -29,6 +29,7 @@ public static class CommandRegistry
             ["quit"] = QuitCommand.Run,
             ["runScenario"] = RunScenarioCommand.Run,
             ["newGame"] = NewGameCommand.Run,
+            ["debugger"] = DebuggerCommand.Run,
         };
 
     public static IEnumerable<string> Names => Handlers.Keys.OrderBy(n => n);

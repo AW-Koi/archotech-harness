@@ -11,7 +11,11 @@ public static class ScenarioInvoker
 
     /// <summary>Runs one scenario class; a harness or connection failure becomes a failed report.</summary>
     /// <remarks>With videoFps above 0 the game records frames, and the report gets "video" or "videoError".</remarks>
-    public static JsonObject Run(HarnessClient client, string assembly, string typeName, string outputDirectory, double videoFps = 0)
+    public static JsonObject Run(HarnessClient client, string assembly, string typeName, string outputDirectory, double videoFps = 0) =>
+        Run(client, assembly, typeName, outputDirectory, videoFps, debugPanel: false);
+
+    /// <summary>As Run, and with debugPanel the game shows the scenario debugger while the scenario runs, unless it records video.</summary>
+    public static JsonObject Run(HarnessClient client, string assembly, string typeName, string outputDirectory, double videoFps, bool debugPanel)
     {
         Directory.CreateDirectory(outputDirectory);
         try
@@ -23,6 +27,7 @@ public static class ScenarioInvoker
                 ["outputDirectory"] = outputDirectory,
                 ["timeoutSeconds"] = ScenarioTimeoutSeconds,
                 ["recordFps"] = videoFps,
+                ["debugPanel"] = debugPanel,
             });
             var report = response["ok"]?.GetValue<bool>() == true
                 ? response["result"]!.AsObject()

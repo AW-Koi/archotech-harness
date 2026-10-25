@@ -26,6 +26,9 @@ public sealed class RoomPlan(CellRect rect)
     /// <summary>Lays conduits under the walls and doors: hidden ones where the game has them.</summary>
     public bool Powered { get; init; }
 
+    /// <summary>Places blueprints for walls, doors, floor and roof, for colonists to build.</summary>
+    public bool Blueprint { get; init; }
+
     /// <summary>Clears only inside the rectangle and keeps doors already on its walls.</summary>
     public bool Adjoining { get; init; }
 }

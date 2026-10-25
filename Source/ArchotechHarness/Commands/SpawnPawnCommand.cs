@@ -45,9 +45,7 @@ public static class SpawnPawnCommand
         Pawn pawn = null;
         for (var attempt = 0; attempt < GenerationAttempts && pawn == null; attempt++)
         {
-            var candidate = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
-                plan.Kind, Faction.OfPlayer, forceGenerateNewPawn: true,
-                canGeneratePawnRelations: false, allowAddictions: false));
+            var candidate = PawnGenerator.GeneratePawn(Request(plan));
             if (workTypes.All(w => !candidate.WorkTypeIsDisabled(w)))
             {
                 pawn = candidate;
@@ -62,6 +60,23 @@ public static class SpawnPawnCommand
         if (plan.Nickname != null && pawn.Name is NameTriple full)
         {
             pawn.Name = new NameTriple(full.First, plan.Nickname, full.Last);
+        }
+
+        foreach (var backstory in plan.Backstories)
+        {
+            if (backstory.slot == BackstorySlot.Childhood)
+            {
+                pawn.story.Childhood = backstory;
+            }
+            else
+            {
+                pawn.story.Adulthood = backstory;
+            }
+        }
+
+        if (plan.Backstories.Count > 0)
+        {
+            pawn.Notify_DisabledWorkTypesChanged();
         }
 
         foreach (var trait in plan.Traits)
@@ -86,6 +101,20 @@ public static class SpawnPawnCommand
         }
 
         return pawn;
+    }
+
+    private static PawnGenerationRequest Request(ColonistPlan plan)
+    {
+        var request = new PawnGenerationRequest(plan.Kind, plan.Faction ?? Faction.OfPlayer, forceGenerateNewPawn: true,
+            canGeneratePawnRelations: false, allowAddictions: false, forcedXenotype: plan.Xenotype);
+        if (plan.Age is { } years)
+        {
+            request.FixedBiologicalAge = years;
+            request.FixedChronologicalAge = years;
+            request.AllowedDevelopmentalStages = Scripting.LifeStage.ForAge(years);
+        }
+
+        return request;
     }
 
     /// <summary>Reads {"defName": number} into defs and numbers.</summary>

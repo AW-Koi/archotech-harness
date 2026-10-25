@@ -9,6 +9,7 @@ public sealed class SleepingThreatsCleared : HarnessScenario
 
     public override async Task Run()
     {
+        // A cleared patch of ground to plant an ancient danger in
         Clock.Speed = TimeSpeed.Paused;
         var c = World.Center;
         var danger = new CellRect(c.x + 4, c.z - 3, 7, 7);
@@ -22,7 +23,6 @@ public sealed class SleepingThreatsCleared : HarnessScenario
             GenSpawn.Spawn(mech, cell, World.Map);
             lord.AddPawn(mech);
         }
-
         var wakeUp = (SignalAction_DormancyWakeUp)ThingMaker.MakeThing(ThingDefOf.SignalAction_DormancyWakeUp);
         wakeUp.signalTag = WakeSignal;
         wakeUp.lord = lord;

@@ -6,6 +6,9 @@ namespace ArchotechHarness.Cli;
 /// <remarks>It boots its own session, or with attach uses the running one and leaves it open.</remarks>
 public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter output, TextWriter progress)
 {
+    /// <summary>Shows the scenario debugger in the game while the scenario runs; true without it.</summary>
+    public bool DebugPanel { get; init; } = true;
+
     /// <summary>Returns false when the scenario failed; a scenario skipped for a missing required mod returns true.</summary>
     public bool Run(string sourceFile, string runDirectory, bool keepOpen, bool attach, int port, double videoFps = 0)
     {
@@ -52,7 +55,7 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
         session ??= sessions.Start(new LaunchOptions(
             scenario.Dlcs.Concat(required.Dlcs).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             scenario.Mods.Select(m => m with { Build = null }).ToList(), required.Mods, scenario.Window, port, Biome: scenario.Biome));
-        var report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory, videoFps);
+        var report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory, videoFps, DebugPanel);
         report["scenario"] = scenario.TypeName;
         report["runDirectory"] = runDirectory;
         if (startsSession && !keepOpen)

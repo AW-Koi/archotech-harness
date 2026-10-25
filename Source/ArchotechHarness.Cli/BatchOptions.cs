@@ -9,4 +9,8 @@ public sealed record BatchOptions(
     int Port,
     string? Workers = null,
     double VideoFps = 0,
-    bool AllowLoadErrors = false);
+    bool AllowLoadErrors = false)
+{
+    /// <summary>Shows the scenario debugger in a visible game, one worker only; true without it.</summary>
+    public bool DebugPanel { get; init; } = true;
+}

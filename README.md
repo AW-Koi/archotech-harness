@@ -35,32 +35,35 @@ public sealed class CleanerCleans : HarnessScenario
 {
     public override async Task Run()
     {
+        // A cleaner alone in a wooden room
         var room = Build.Room()
             .Size(9, 7)
             .WithFloor(TerrainDefOf.WoodPlankFloor)
             .WithDoor(Rot4.South)
             .Build();
-
         var cleaner = Spawn.Colonist()
             .Inside(room)
             .Doing(WorkTypeDefOf.Cleaning)
             .Spawn();
         Colonists.RemoveAllExcept(cleaner);
 
+        // Blood on the floor
         room.Scatter(ThingDefOf.Filth_Blood, 10);
         var before = room.Filth().Count;
         await Shot("before");
 
+        // The cleaner gets to work
         Clock.Speed = TimeSpeed.Superfast;
         await Until(() => room.Filth().Count < before, timeoutSeconds: 120);
 
+        // The blood went because the cleaner cleaned it
         Check(cleaner.CurrentJob() == JobDefOf.Clean);
         await Shot("after");
     }
 }
 ```
 
-Save it in `scenarios/` and run it with `./archo run scenarios/CleanerCleans.cs`.
+Save it in `scenarios/` and run it with `./archo run scenarios/CleanerCleans.cs`. Open each block of a scenario with a one-line comment that says what it stages or checks.
 
 ### Builders
 
@@ -85,6 +88,54 @@ Building is best-effort and later commands win. A building, plant, room, floor o
 - `Build.InWall(def, cell, facing)` replaces a wall cell with a cooler, vent or other wall-mounted building. It fails if the cell holds no wall.
 - `Build.Room().Powered()` hides conduits in the walls, so powered things inside connect. `Build.Conduit(from, to)` lays a visible L-shaped conduit, such as from a generator. `World.Home(rect)` marks home area.
 
+### Staging a battle
+
+- `Spawn.Group(faction).Of(kind, count)` spawns one faction's pawns as a group with a lord. Repeat `.Of` for mixed groups. Place it with `.At(cell)` or `.FromEdge(side)`, which picks ground on that edge that reaches the colony. `.Armed(weapon)` replaces every member's weapon. A hostile group assaults the colony and any other group visits, unless you pick `.Assaulting()`, `.Visiting()` or `.Defending()`.
+- `Spawn.Raid(points)` fires a raid even after `World.Calm()`. It takes `.From(faction)`, `.Strategy(def)` and `.Arriving(def)`; the game picks whatever you leave out. `.Spawn()` returns the raiders, and fails the run when the raid can't fire.
+- `Spawn.Projectile(def).At(cell)` launches shells or other projectiles at a cell. A shell def fires the projectile it loads. `.FromEdge(side, distance)` sets where they come from (north, 60 cells away, without it), `.Scatter(radius)` spreads where they land and `.Count(n)` fires several.
+- `Spawn.Turret(def).At(cell)` places a turret or mortar with a full barrel. `.OwnedBy(faction)` sets its owner, `.Loaded(shell)` loads it and piles spare shells beside it, and `.Manned(kind)` or `.MannedBy(pawn)` gives it a crew. An enemy crew mans it and fires at the colony.
+- `Build.Line(def, from, to)` builds an L-shaped line of buildings, such as sandbags, along x then along z. Vanilla has no trench, so lay a strip of floor such as `TerrainDefOf.PackedDirt` with `Build.Floor` instead.
+- `Spawn.Colonist()` takes `.Armed(weapon)`, `.Wearing(apparel)` (repeatable) and `.Drafted()`. `pawn.Draft()` drafts a pawn where it stands, and `pawn.HoldAt(cell)` drafts it and sends it to the cell, where it holds and fires at will.
+- `World.Faction(def)` returns the world's first faction of that def, and generates one when the world has none.
+
+### Hurting and healing pawns
+
+- `pawn.Wound(injury, part, severity)` adds an injury, such as `HediffDefOf.Cut` or the `Gunshot` def, to the first intact part of that def. Injuries bleed by their own rules, so a deep torso wound bleeds out.
+- `pawn.RemovePart(part)` removes a part as a tended stump; `fresh: true` leaves it bleeding.
+- `pawn.AddHediff(def, part, severity)` adds any hediff, such as `HediffDefOf.WoundInfection` on a part or `HediffDefOf.Anesthetic` to keep a pawn unconscious.
+- `pawn.Down()` damages a pawn until it is downed, without bleeding wounds. Kill a pawn with RimWorld's own `pawn.Kill(null)`.
+- `pawn.PutInBed(bed)` puts a pawn in a bed at once, tired so it sleeps; `awake: true` leaves it awake. A downed pawn in a medical bed is a patient.
+- `pawn.StartMentalState(def)` starts a mental state now, such as `MentalStateDefOf.Wander_Sad`, and returns whether it started.
+- `Spawn.Thing(bed).Medical()` makes a medical bed, and `.ForPrisoners()` a prisoner bed.
+
+### Who pawns are
+
+- `Spawn.Colonist()` takes `.Aged(years)`, `.Xenotype(def)` and `.WithBackstory(def)`, which replaces the childhood or adulthood by the backstory's slot. A child or baby, and a xenotype, need `[Dlc("biotech")]`.
+- `pawn.GrantTitle(title)` grants a royal title of the Empire, or of the faction you pass, with no rewards or letter. It needs `[Dlc("royalty")]`.
+- `pawn.AssignRole(def)` gives a pawn the role of its ideoligion with that def, such as `PreceptDefOf.IdeoRole_Leader`. It needs `[Dlc("ideology")]`.
+- `pawn.Relate(other, def)` adds a relation, such as `PawnRelationDefOf.Spouse`, `Fiance`, `Lover`, `ExLover` or `Parent`, where `other` is the pawn's spouse, parent and so on.
+- `pawn.SetOpinionOf(other, opinion)` sets an opinion from -100 to 100 through one lasting social memory, so 20 makes a friend and -20 a rival. Later thoughts move it as they would in play.
+- `Spawn.Group(Faction.OfEmpire).Of(noble).Of(guard, 2).Visiting()` brings a noble and guards as one visiting lord.
+
+Put DLC defs in your DefOf class with `[MayRequireRoyalty]` and the like, so scenarios without that DLC still load.
+
+### Prisoners
+
+- `Spawn.Prisoner()` spawns a prisoner of the colony. `.From(faction)` picks where they came from (`Faction.OfPirates` without it), and `.OfKind(kind)` the pawn kind. Place them with `.At(cell)`, `.Inside(room)` or `.InBed(bed)`, which assigns the bed and puts them in it asleep. It also takes `.WithName`, `.WithTrait`, `.WithSkill`, `.Aged` and `.WithBackstory`.
+- A room whose beds are all `Spawn.Thing(bed).ForPrisoners()` is a prison cell.
+
+### Blueprints
+
+- `Build.Room().AsBlueprint()` places blueprints for the walls, doors and floor in place of a finished room, and marks the roof to build when `.Roofed()`. Rooms built with `.Adjoining()` share a wall as finished rooms do.
+- `Spawn.Thing(def).AsBlueprint()` places a blueprint of a building `.At` a cell, with `.Facing` and `.MadeOf`. It takes no starting state such as `.Fuelled()` or bills. `Build.Line(...).AsBlueprint()` does the same for a line.
+- `World.Unbuilt(area)` lists the player's blueprints and construction frames still to finish, so `await FastForwardUntil(() => World.Unbuilt(house).Count == 0, 3 * GenDate.TicksPerDay)` waits for colonists to finish building.
+- Colonists need materials and food to build: put stacks of at most the def's stack limit, such as 75 wood, in a stockpile.
+
+### Ceremonies
+
+- `Ceremony.Wedding(first, second, spot)` makes the pair fiancés if they aren't, and starts their marriage ceremony now, even in a calm world. Without a spot the game picks a marriage site, and the run fails when there is none. The pair are married when it ends. It returns the ceremony's lord.
+- `Ceremony.Party(organizer)` starts a party the pawn hosts at a gathering spot, such as a table, and returns its lord.
+
 ### Furnishing presets
 
 Presets furnish a built room in one call, on free floor only. They never use the cell inside a door, interaction cells or the space beside a bed. Each piece tries its preferred spot, then corners, wall-side cells and any free floor. A piece that still doesn't fit is left out and noted in the report, such as "placed 0 of 1 plant pots, no free floor".
@@ -99,8 +150,19 @@ Each `.Build()` returns a `FurnishedRoom` with the `Things` it placed, `Bed` and
 
 - `await Until(() => condition)` waits for a condition without freezing the game. It fails the run when the timeout passes.
 - `await Ticks(n)` waits for game time. The game starts paused, so set `Clock.Speed` first.
+- `await FastForward(ticks)` runs game time as fast as the machine allows while still drawing about 60 frames a second, so whole days pass in seconds. `await FastForwardUntil(() => condition, maxTicks)` stops early when the condition holds and fails the run when `maxTicks` pass first. The time controls show Ultrafast meanwhile, and `Clock.Speed` returns to what it was.
 - `await Reload()` saves the game, loads it back and waits until the map is playable. Look up pawns and things again afterwards, because the old references go stale.
 - `Check(condition)` records a check and carries on. `Require(condition)` stops the scenario when it fails. The report shows the source text of each check.
+
+### Scenario debugger
+
+When `archo run` or `archo test` runs scenarios in a visible game, a "Scenario debugger" panel opens over the game. It lists the scenario's steps as they happen (builds, spawns, checks in green or red, notes, screenshots and finished waits), and highlights what the script waits for now. Drag it anywhere in the game window.
+
+- **Pause** stops the script at its next `await` and pauses the game, so you can play: change the speed, select pawns and give orders.
+- **Resume** carries on from there at the speed the script last set.
+- **Step** runs the script up to its next `await`, then pauses it again.
+
+Time spent paused doesn't count towards an `Until` timeout, and ticks you run while paused don't count towards `Ticks`. A scenario run still stops after 30 minutes, pauses included. Screenshots and videos leave the panel out, and the panel stays closed while a scenario records video. Pass `--no-panel` to run without it. `archo send debugger '{"action":"pause"}'` does the same from a script; the actions are `state`, `pause`, `resume` and `step`.
 
 ### Game errors
 
@@ -108,9 +170,20 @@ A scenario fails when the game logs an error while it runs, even if every check 
 
 Put `[AllowGameErrors]` on the class to let it pass anyway, or `[AllowGameErrors("text")]` to accept only errors that contain that text (case-sensitive). Repeat the attribute for several texts.
 
-### Screenshots and notes
+### Screenshots, notes and attachments
 
 `await Shot("name")` saves a screenshot. `Note("key", value)` adds a value to the report.
+
+`AttachFile(path)` copies a file, such as a conversation transcript your mod wrote, into the run folder and lists it in the report. `AttachText("transcript.txt", text)` writes the text there instead. The HTML report shows `.txt`, `.log`, `.md`, `.json` and `.csv` attachments inline and links any other file, such as an HTML page.
+
+### Scale and speed
+
+- `Spawn.Colonists(count)` spawns many colonists at once, without the retries `Spawn.Colonist()` makes for work types. `.Within(area)` spreads them over that area and `.OfKind(kind)` picks the kind.
+- `await TicksPerSecond(seconds)` measures game ticks and frames per second over that much real time, notes both as `ticksPerSecond` and `framesPerSecond`, and returns ticks per second. Set `Clock.Speed` first.
+
+### Random seed
+
+Each run starts the game's random numbers from a seed just before `Run`, and the report records it as `seed`. Put `[Seed(1234)]` on the class to choose it, such as to repeat a run. The seed repeats the scenario's random draws only from the same starting map, and each game generates a new quick-test map, so a scenario that depends on the map can still differ between games.
 
 ### Defs
 
@@ -152,6 +225,7 @@ Attributes on a class add to the project's mods for that scenario. Their paths a
 | `[RequiresMod("ferny.ProgressionEducation")]` | Loads an installed mod by package id, with its dependencies. Repeat it for several mods. See [Compatibility scenarios](#compatibility-scenarios). |
 | `[Dlc("biotech")]` | Activates DLCs: `royalty`, `ideology`, `biotech`, `anomaly`, `odyssey`. |
 | `[Biome(nameof(BiomeDefOf.TemperateForest))]` | Starts the colony on that biome, on flat or small hills averaging 10 to 25C where the world has such a tile. A name that isn't a loaded biome colonies can settle fails the run. |
+| `[Seed(1234)]` | Starts the game's random numbers from that seed before `Run`. |
 
 ### Compatibility scenarios
 
@@ -163,6 +237,7 @@ public sealed class EducationGatesTheSprayer : HarnessScenario
 {
     public override async Task Run()
     {
+        // The sprayer needs the education mod's proficiency to use
         var sprayer = DefDatabase<ThingDef>.GetNamed("Janitor_HazmatSprayer");
         Check(sprayer.modExtensions.Any(e => e.GetType().Name == "ItemProficiencyRequirement"));
     }
@@ -227,6 +302,7 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 | `archo test --filter GLOB` | Runs only matching scenarios, such as `--filter "Mop*"`. Repeat it to match several patterns. |
 | `archo test --retries N` | Retries a failed scenario up to N times. |
 | `archo test --workers N` | Runs N games at once. `--workers auto` picks a number that fits your machine. |
+| `archo test --no-panel` | Runs without the scenario debugger panel. `run` takes it too. |
 | `archo test --allow-load-errors` | Runs the scenarios even when a mod under test logged errors while the game loaded. See [Load errors](#load-errors). |
 | `archo test --video` | Records a video of each scenario into the report. It needs ffmpeg, on the PATH, installed with WinGet, or named by the `FFMPEG` environment variable. `--video-fps N` sets the frame rate (default 5). `run` takes it too. |
 | `archo launch` | Starts a game and leaves it running for `send`. `--mod DIR` and `--dlc NAME` choose what it loads. |
@@ -250,15 +326,27 @@ When `archo test` boots a game, it reads the errors the game logged while it loa
 
 | Member | Does |
 | --- | --- |
-| `Build.Room()` | Builds a walled room. Requires `.Size(w, h)` or `.Covering(rect)`; takes `.CenteredOn(cell)`, `.WithFloor(def)`, `.WithWalls(def)`, `.MadeOf(stuff)`, `.WithDoor(rot)`, `.WithDoorAt(cell)`, `.Adjoining()`, `.Powered()` and `.Roofed()`. Finish with `.Build()`. |
+| `Build.Room()` | Builds a walled room. Requires `.Size(w, h)` or `.Covering(rect)`; takes `.CenteredOn(cell)`, `.WithFloor(def)`, `.WithWalls(def)`, `.MadeOf(stuff)`, `.WithDoor(rot)`, `.WithDoorAt(cell)`, `.Adjoining()`, `.Powered()`, `.Roofed()` and `.AsBlueprint()`. Finish with `.Build()`. |
 | `Build.Stockpile(rect)`, `Build.GrowingZone(rect)` | Makes a zone. A stockpile takes `.Preset(preset)`; a growing zone requires `.Planting(plant)` and takes `.Grown(growth)`. Finish with `.Build()`. |
 | `Build.Floor(rect, def)`, `Build.Clearing(rect)` | Lays a floor, or clears an area to open ground. |
 | `Build.Path(from, to)`, `Build.InWall(def, cell, facing)`, `Build.Conduit(from, to)` | Lays an L-shaped path, mounts a building in a wall, or lays a conduit. |
 | `Furnish.Bedroom(room)`, `Furnish.Dining(room, area)`, `Decorate.Room(room)` | Furnishes or decorates a room. Finish with `.Build()`. |
 | `Spawn.Plant(def)`, `Spawn.Animal(kind)` | Plants a tree or flower, or adds an animal. Finish with `.Spawn()`. |
-| `Spawn.Colonist()` | Spawns a colonist. Takes `.WithName`, `.At(cell)` or `.Inside(room)`, `.Doing(workTypes)`, `.KeepingOtherWork()`, `.IncapableOf(tags)`, `.WithTrait`, `.WithSkill` and `.OfKind`. Finish with `.Spawn()`. |
-| `Spawn.Thing(def)` | Makes a thing. Takes `.At(cell)` or `.GivenTo(pawn)`, `.MadeOf`, `.OfQuality`, `.Stack` and, for a building, `.Facing(rot)`, `.Fuelled()`, `.Charged()`, `.Growing(plant)`, `.WithBill(recipe)` and `.Holding(def, count)`. Finish with `.Spawn()`. |
+| `Spawn.Colonist()` | Spawns a colonist. Takes `.WithName`, `.At(cell)` or `.Inside(room)`, `.Doing(workTypes)`, `.KeepingOtherWork()`, `.IncapableOf(tags)`, `.WithTrait`, `.WithSkill`, `.OfKind`, `.Armed(weapon)`, `.Wearing(apparel)`, `.Drafted()`, `.Aged(years)`, `.Xenotype(def)` and `.WithBackstory(def)`. Finish with `.Spawn()`. |
+| `Spawn.Thing(def)` | Makes a thing. Takes `.At(cell)` or `.GivenTo(pawn)`, `.MadeOf`, `.OfQuality`, `.Stack` and, for a building, `.Facing(rot)`, `.Fuelled()`, `.Charged()`, `.Growing(plant)`, `.WithBill(recipe)` and `.Holding(def, count)`, and for a bed `.Medical()` and `.ForPrisoners()`. `.AsBlueprint()` places a blueprint instead. Finish with `.Spawn()`. |
 | `Spawn.Filth(def, cell)` | Places filth. |
+| `Spawn.Prisoner()` | Spawns a prisoner of the colony. Requires one of `.At(cell)`, `.Inside(room)` or `.InBed(bed)`; takes `.From(faction)`, `.OfKind`, `.WithName`, `.WithTrait`, `.WithSkill`, `.Aged` and `.WithBackstory`. Finish with `.Spawn()`. |
+| `Spawn.Group(faction)` | Spawns a group of one faction's pawns with a lord. Requires `.Of(kind, count)` and one of `.At(cell)` or `.FromEdge(side)`; takes `.Armed(weapon)`, `.Assaulting()`, `.Visiting()` and `.Defending()`. Finish with `.Spawn()`. |
+| `Spawn.Raid(points)` | Fires a raid, even in a calm world. Takes `.From(faction)`, `.Strategy(def)` and `.Arriving(def)`. Finish with `.Spawn()`. |
+| `Spawn.Projectile(def)` | Fires shells or projectiles. Requires `.At(cell)`; takes `.FromEdge(side, distance)`, `.Scatter(radius)` and `.Count(n)`. Finish with `.Spawn()`. |
+| `Spawn.Turret(def)` | Places a turret or mortar. Requires `.At(cell)`; takes `.Facing(rot)`, `.OwnedBy(faction)`, `.Loaded(shell, spares)`, `.Manned(kind)` and `.MannedBy(pawn)`. Finish with `.Spawn()`. |
+| `Build.Line(def, from, to)` | Builds an L-shaped line of buildings. Takes `.MadeOf(stuff)` and `.AsBlueprint()`. Finish with `.Build()`. |
+| `pawn.Draft()`, `pawn.HoldAt(cell)` | Drafts a pawn, or drafts it and orders it to a cell. |
+| `World.Faction(def)` | The first faction of a def, generated when missing. |
+| `World.Unbuilt(area)` | The player's blueprints and frames still to finish. |
+| `Ceremony.Wedding(first, second, spot)`, `Ceremony.Party(organizer)` | Starts a wedding or a party now. |
+| `pawn.Wound`, `pawn.RemovePart`, `pawn.AddHediff`, `pawn.Down`, `pawn.PutInBed`, `pawn.StartMentalState` | Hurts, downs, beds or breaks a pawn. |
+| `pawn.GrantTitle`, `pawn.AssignRole`, `pawn.Relate`, `pawn.SetOpinionOf` | Sets a pawn's title, role, relations and opinions. |
 | `room.Scatter(def, count)`, `room.Filth(defs)` | Spreads filth over a room, or lists the filth in it. |
 | `World.Map`, `World.Center`, `World.Filth`, `World.Things`, `World.Pawn` | The current map and queries over it. |
 | `World.Calm()`, `World.RemoveHostiles()`, `World.Home(rect)` | Stops incidents and keeps clear weather, removes hostile and dormant pawns, or marks home area. |
@@ -266,8 +354,11 @@ When `archo test` boots a game, it reads the errors the game logged while it loa
 | `pawn.CurrentJob()`, `pawn.SetWork`, `pawn.HasThought`, `pawn.Memories`, `pawn.FloatMenuAt(cell)` | Pawn shortcuts. |
 | `Camera.Look`, `Camera.Frame(room)`, `Camera.Frame(rect)`, `Camera.Follow(pawn)` | Points the camera. |
 | `Clock.Speed`, `Clock.Tick`, `Clock.SkipToHour(hour)` | Game speed and tick, and a jump to an hour of the day. |
-| `Until`, `Ticks`, `Frames` | Waits. |
+| `Until`, `Ticks`, `Frames`, `FastForward`, `FastForwardUntil` | Waits, or runs game time as fast as possible. |
 | `Check`, `Require`, `Note`, `Shot` | Records checks, values and screenshots. |
+| `AttachFile(path)`, `AttachText(name, text)` | Adds a file to the run folder and the report. |
+| `TicksPerSecond(seconds)` | Measures and notes ticks and frames per second. |
+| `Spawn.Colonists(count)` | Spawns many colonists at once. Takes `.Within(area)` and `.OfKind(kind)`. Finish with `.Spawn()`. |
 
 ### Isolation and your files
 

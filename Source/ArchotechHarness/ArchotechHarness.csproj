@@ -23,6 +23,22 @@
       <HintPath>$(RimWorldDir)\UnityStubs.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Brutal.ImGui">
+      <HintPath>$(RimWorldDir)\Brutal.ImGui.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Brutal.Core.Common">
+      <HintPath>$(RimWorldDir)\Brutal.Core.Common.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Brutal.Core.Strings">
+      <HintPath>$(RimWorldDir)\Brutal.Core.Strings.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Brutal.Core.Numerics">
+      <HintPath>$(RimWorldDir)\Brutal.Core.Numerics.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Waylith">
       <HintPath>$(RimWorldDir)\Waylith.dll</HintPath>
       <Private>False</Private>

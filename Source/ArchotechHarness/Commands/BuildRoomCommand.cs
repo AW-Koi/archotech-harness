@@ -43,6 +43,12 @@ public static class BuildRoomCommand
     {
         var keptDoors = room.Adjoining ? room.Rect.EdgeCells.Where(c => c.GetDoor(map) != null).ToHashSet() : [];
         Clear(map, room.Adjoining ? room.Rect.ClipInsideMap(map) : room.Rect.ExpandedBy(1).ClipInsideMap(map), keptDoors);
+        if (room.Blueprint)
+        {
+            PlaceBlueprints(map, room, keptDoors);
+            return;
+        }
+
         foreach (var cell in room.Rect.EdgeCells.Where(c => !keptDoors.Contains(c)))
         {
             var def = room.Doors.Contains(cell) ? room.DoorDef : room.Wall;
@@ -72,6 +78,46 @@ public static class BuildRoomCommand
         if (room.Powered)
         {
             PowerConduits.Lay(map, room.Rect.EdgeCells, ThingDefOf.HiddenConduit ?? ThingDefOf.PowerConduit);
+        }
+
+        if (room.Home)
+        {
+            foreach (var cell in room.Rect)
+            {
+                map.areaManager.Home[cell] = true;
+            }
+        }
+    }
+
+    /// <summary>Places wall, door, floor and conduit blueprints, marks the roof to build and the home area, and clears filth.</summary>
+    private static void PlaceBlueprints(Map map, RoomPlan room, HashSet<IntVec3> keptDoors)
+    {
+        foreach (var cell in room.Rect.EdgeCells.Where(c => !keptDoors.Contains(c)))
+        {
+            var def = room.Doors.Contains(cell) ? room.DoorDef : room.Wall;
+            GenConstruct.PlaceBlueprintForBuild(def, cell, map, Rot4.North, Faction.OfPlayer, def.MadeFromStuff ? room.Stuff ?? GenStuff.DefaultStuffFor(def) : null);
+            if (room.Powered)
+            {
+                GenConstruct.PlaceBlueprintForBuild(ThingDefOf.HiddenConduit ?? ThingDefOf.PowerConduit, cell, map, Rot4.North, Faction.OfPlayer, null);
+            }
+        }
+
+        foreach (var cell in room.Rect.ContractedBy(1))
+        {
+            if (room.Floor != null)
+            {
+                GenConstruct.PlaceBlueprintForBuild(room.Floor, cell, map, Rot4.North, Faction.OfPlayer, null);
+            }
+
+            if (room.Roof)
+            {
+                map.areaManager.BuildRoof[cell] = true;
+            }
+
+            foreach (var filth in cell.GetThingList(map).OfType<Filth>().ToList())
+            {
+                filth.Destroy();
+            }
         }
 
         if (room.Home)

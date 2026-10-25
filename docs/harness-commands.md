@@ -23,7 +23,8 @@ Cells are `[x, z]` or `"center"`. Rectangles are `[x, z, width, height]`.
 | `listProbes` | none | All probe and command names. |
 | `log` | `minLevel` (`message`, `warning`, `error`), `count`, `contains` | `errors`, `warnings` and the matching `entries`. |
 | `newGame` | `mapSize`, `planetCoverage`, `seed` | Replaces the game with a fresh quick-test colony. |
-| `runScenario` | `assembly`, `entryType`, `outputDirectory` | Runs a scenario class from a built assembly and replies with its report. |
+| `runScenario` | `assembly`, `entryType`, `outputDirectory`, `recordFps`, `debugPanel` | Runs a scenario class from a built assembly and replies with its report. `debugPanel` shows the scenario debugger unless `recordFps` is above 0. |
+| `debugger` | `action` (`state`, `pause`, `resume`, `step`), `since` | The running scenario's `scenario`, `paused`, `stepping`, `waiting`, `stepCount` and its timeline `steps` from index `since`. |
 | `quit` | none | Closes the game without saving. |
 
 ## Probes

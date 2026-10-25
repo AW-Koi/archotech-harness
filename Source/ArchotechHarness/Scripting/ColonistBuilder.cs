@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using ArchotechHarness.Commands;
 using RimWorld;
 using Verse;
@@ -18,6 +19,12 @@ public sealed class ColonistBuilder
     private PawnKindDef _kind;
     private bool _onlyWork = true;
     private WorkTags _incapableOf;
+    private ThingDef _weapon;
+    private readonly List<ThingDef> _apparel = new();
+    private bool _drafted;
+    private float? _age;
+    private XenotypeDef _xenotype;
+    private readonly List<BackstoryDef> _backstories = new();
 
     internal ColonistBuilder(string caller) =>
         _token = ScriptSession.Current?.Builders.Track($"Spawn.Colonist() at {caller} ends with .Spawn()");
@@ -88,6 +95,48 @@ public sealed class ColonistBuilder
         return this;
     }
 
+    /// <summary>Replaces the colonist's weapon with a new one of this def.</summary>
+    public ColonistBuilder Armed(ThingDef weapon)
+    {
+        _weapon = weapon;
+        return this;
+    }
+
+    /// <summary>Puts on new apparel of this def, replacing what it covers; repeatable.</summary>
+    public ColonistBuilder Wearing(ThingDef apparel)
+    {
+        _apparel.Add(apparel);
+        return this;
+    }
+
+    /// <summary>Drafts the colonist where it spawns, so it holds that position and fires at will.</summary>
+    public ColonistBuilder Drafted()
+    {
+        _drafted = true;
+        return this;
+    }
+
+    /// <summary>The biological and chronological age in years; a child or baby needs Biotech.</summary>
+    public ColonistBuilder Aged(float years)
+    {
+        _age = years;
+        return this;
+    }
+
+    /// <summary>Needs Biotech.</summary>
+    public ColonistBuilder Xenotype(XenotypeDef xenotype)
+    {
+        _xenotype = xenotype;
+        return this;
+    }
+
+    /// <summary>Replaces the childhood or adulthood, by the backstory's slot; repeatable.</summary>
+    public ColonistBuilder WithBackstory(BackstoryDef backstory)
+    {
+        _backstories.Add(backstory);
+        return this;
+    }
+
     public Pawn Spawn()
     {
         ScriptSession.Current?.Builders.Finish(_token);
@@ -96,7 +145,22 @@ public sealed class ColonistBuilder
             throw new HarnessException("A colonist goes At a cell or Inside a room, not both.");
         }
 
-        return SpawnPawnCommand.Generate(World.Map, new ColonistPlan(_cell ?? _room?.Center ?? World.Center)
+        if (_age is { } years && !(years >= 0))
+        {
+            throw new HarnessException($"Spawn.Colonist().Aged({years}) needs an age of 0 or more.");
+        }
+
+        if (_weapon != null && _weapon.equipmentType != EquipmentType.Primary)
+        {
+            throw new HarnessException($"Spawn.Colonist().Armed({_weapon.defName}): {_weapon.defName} is not a weapon.");
+        }
+
+        if (_apparel.FirstOrDefault(a => !a.IsApparel) is { } notApparel)
+        {
+            throw new HarnessException($"Spawn.Colonist().Wearing({notApparel.defName}): {notApparel.defName} is not apparel.");
+        }
+
+        var pawn = SpawnPawnCommand.Generate(World.Map, new ColonistPlan(_cell ?? _room?.Center ?? World.Center)
         {
             Nickname = _name,
             Kind = _kind ?? PawnKindDefOf.Colonist,
@@ -105,6 +169,20 @@ public sealed class ColonistBuilder
             Traits = _traits,
             Skills = _skills,
             IncapableOf = _incapableOf,
+            Age = _age,
+            Xenotype = _xenotype,
+            Backstories = _backstories,
         });
+        foreach (var gear in _apparel.Prepend(_weapon).Where(def => def != null))
+        {
+            EquipCommand.Give(pawn, ThingFactory.Make(gear));
+        }
+
+        if (_drafted)
+        {
+            pawn.drafter.Drafted = true;
+        }
+
+        return pawn;
     }
 }

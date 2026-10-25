@@ -11,12 +11,16 @@ public static class ScreenshotCommand
 {
     private const double TimeoutSeconds = 20;
 
+    /// <summary>Screenshots asked for and not yet written, so overlays such as the debug panel can stay out of them.</summary>
+    public static int Pending { get; private set; }
+
     public static CommandResult Run(JsonObject args)
     {
         var path = Path.GetFullPath(Arguments.RequiredString(args, "path"));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.Delete(path);
         ScreenCapture.CaptureScreenshot(path);
+        Pending++;
 
         var deadline = DateTime.UtcNow.AddSeconds(TimeoutSeconds);
         long lastLength = -1;
@@ -25,13 +29,18 @@ public static class ScreenshotCommand
             var length = File.Exists(path) ? new FileInfo(path).Length : 0;
             if (length > 0 && length == lastLength && CanOpen(path))
             {
+                Pending--;
                 return new JsonObject { ["path"] = path, ["bytes"] = length };
             }
 
             lastLength = length;
-            return DateTime.UtcNow > deadline
-                ? throw new HarnessException($"No screenshot appeared at {path}; try the CLI's window capture instead.")
-                : null;
+            if (DateTime.UtcNow <= deadline)
+            {
+                return null;
+            }
+
+            Pending--;
+            throw new HarnessException($"No screenshot appeared at {path}; try the CLI's window capture instead.");
         });
     }
 

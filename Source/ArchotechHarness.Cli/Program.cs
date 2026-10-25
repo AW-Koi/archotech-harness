@@ -9,8 +9,8 @@ public static class Program
         archo: drive RimWorld 1.7 through the Archotech Harness mod.
 
           archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
-          archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--video] [--out DIR] [--port N]
-          archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--video] [--allow-load-errors] [--out DIR]
+          archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--video] [--no-panel] [--out DIR] [--port N]
+          archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--video] [--no-panel] [--allow-load-errors] [--out DIR]
           archo send COMMAND ['{"json":"args"}'] [--session ID]
           archo capture PATH.png [--session ID]
           archo status
@@ -71,7 +71,7 @@ public static class Program
             : Path.Combine(paths.RunsDirectory, $"{Path.GetFileNameWithoutExtension(file)}-{DateTime.Now:yyyyMMdd-HHmmss}");
         WaitIfAsked(sessions, options);
         PruneOldRuns(paths, sessions);
-        var failed = !new ScenarioClassRunner(sessions, Console.Out, Console.Error)
+        var failed = !new ScenarioClassRunner(sessions, Console.Out, Console.Error) { DebugPanel = !options.Flag("--no-panel") }
             .Run(file, runDirectory, options.Flag("--keep-open"), options.Flag("--attach"), options.Port(), options.VideoFps());
         return failed ? 1 : 0;
     }
@@ -86,7 +86,7 @@ public static class Program
         PruneOldRuns(paths, sessions);
         var outcomes = new ScenarioBatch(sessions, Console.Out, Console.Error).Run(new BatchOptions(
             scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port(), options.Value("--workers"), options.VideoFps(),
-            options.Flag("--allow-load-errors")));
+            options.Flag("--allow-load-errors")) { DebugPanel = !options.Flag("--no-panel") });
         return outcomes.Any(o => o.Failed) ? 1 : 0;
     }
 

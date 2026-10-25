@@ -9,7 +9,7 @@ using Verse;
 namespace ArchotechHarness.Commands;
 
 /// <summary>Loads a built scenarios assembly and runs one HarnessScenario's Run() on the main thread.</summary>
-/// <remarks>Arguments: "assembly" (path), "entryType" (full class name), "outputDirectory". The game is paused before Run() starts, so the quick-test colonists stand still. Replies with the report when Run() ends.</remarks>
+/// <remarks>Arguments: "assembly" (path), "entryType" (full class name), "outputDirectory", optional "recordFps" and "debugPanel". The game is paused before Run() starts, so the quick-test colonists stand still. Replies with the report when Run() ends.</remarks>
 public static class RunScenarioCommand
 {
     private static readonly TimeSpan PauseTimeout = TimeSpan.FromSeconds(15);
@@ -39,6 +39,10 @@ public static class RunScenarioCommand
 
         var session = ScriptSession.Begin(Arguments.RequiredString(args, "outputDirectory"));
         session.AllowedErrors = GameErrorAllowList.From(type.GetCustomAttributes<AllowGameErrorsAttribute>());
+        var seed = ScenarioSeed.Resolve(type, () => new Random().Next());
+        session.Seed = seed;
+        session.ScenarioName = type.Name;
+        session.ShowPanel = Arguments.Bool(args, "debugPanel", false) && Arguments.Float(args, "recordFps", 0) <= 0;
         if (Arguments.Float(args, "recordFps", 0) is var fps and > 0)
         {
             session.StartRecording(System.IO.Path.Combine(session.OutputDirectory, "frames"), fps);
@@ -57,6 +61,8 @@ public static class RunScenarioCommand
                     return null;
                 }
 
+                RandSeeder.Seed(seed);
+                session.Timeline.Add("seed", seed.ToString());
                 scenario = Start(type);
             }
 

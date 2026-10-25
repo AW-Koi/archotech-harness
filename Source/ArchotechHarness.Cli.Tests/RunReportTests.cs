@@ -115,6 +115,36 @@ public sealed class RunReportTests : IDisposable
     }
 
     [Fact]
+    public void Html_TextAttachment_IsShownInlineAndLinked()
+    {
+        var transcript = _temp.WriteFile("MopsTheFloor/transcript.txt", "Ada: Mind the <wet> floor.");
+        var report = JsonNode.Parse(PassedReport)!.AsObject();
+        report["attachments"] = new JsonArray(transcript);
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("MopsTheFloor", report.ToJsonString())]);
+
+        var html = File.ReadAllText(path);
+        Assert.Contains("<a href=\"MopsTheFloor/transcript.txt\">transcript.txt</a>", html);
+        Assert.Contains("<pre>Ada: Mind the &lt;wet&gt; floor.</pre>", html);
+    }
+
+    [Fact]
+    public void Html_HtmlAttachment_IsLinkedWithoutItsSource()
+    {
+        var page = _temp.WriteFile("MopsTheFloor/conversation.html", "<p>Ada: Hello.</p>");
+        var report = JsonNode.Parse(PassedReport)!.AsObject();
+        report["attachments"] = new JsonArray(page);
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("MopsTheFloor", report.ToJsonString())]);
+
+        var html = File.ReadAllText(path);
+        Assert.Contains("<a href=\"MopsTheFloor/conversation.html\">conversation.html</a>", html);
+        Assert.DoesNotContain("Ada: Hello.", html);
+    }
+
+    [Fact]
     public void Html_Video_IsEmbeddedByItsPathRelativeToTheReport()
     {
         var video = _temp.WriteFile("MopsTheFloor/video.mp4", "");

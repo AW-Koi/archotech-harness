@@ -22,6 +22,7 @@ public sealed class RoomBuilder
     private bool _roof;
     private bool _adjoining;
     private bool _powered;
+    private bool _blueprint;
 
     internal RoomBuilder(string caller) =>
         _token = ScriptSession.Current?.Builders.Track($"Build.Room() at {caller} ends with .Build()");
@@ -97,13 +98,20 @@ public sealed class RoomBuilder
         return this;
     }
 
+    /// <summary>Places blueprints for colonists to build, and marks the roof to build when Roofed, in place of a finished room.</summary>
+    public RoomBuilder AsBlueprint()
+    {
+        _blueprint = true;
+        return this;
+    }
+
     public RoomBuilder Roofed()
     {
         _roof = true;
         return this;
     }
 
-    /// <summary>Clears the area, builds the finished room and removes any filth inside it.</summary>
+    /// <summary>Clears the area, builds the finished room, or its blueprints, and removes any filth inside it.</summary>
     public HarnessRoom Build()
     {
         ScriptSession.Current?.Builders.Finish(_token);
@@ -124,6 +132,7 @@ public sealed class RoomBuilder
             Roof = _roof,
             Adjoining = _adjoining,
             Powered = _powered,
+            Blueprint = _blueprint,
         });
         return new HarnessRoom(bounds);
     }

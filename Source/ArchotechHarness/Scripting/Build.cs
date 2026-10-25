@@ -25,6 +25,10 @@ public static class Build
     public static PathBuilder Path(IntVec3 from, IntVec3 to, [CallerFilePath] string file = null, [CallerLineNumber] int line = 0) =>
         new(from, to, $"{System.IO.Path.GetFileName(file)}:{line}");
 
+    /// <summary>Starts an L-shaped line of buildings, along x then along z, such as sandbags; finish with Build().</summary>
+    public static LineBuilder Line(ThingDef def, IntVec3 from, IntVec3 to, [CallerFilePath] string file = null, [CallerLineNumber] int line = 0) =>
+        new(def, from, to, $"{System.IO.Path.GetFileName(file)}:{line}");
+
     /// <summary>Replaces a wall cell with a wall-mounted building such as a cooler or vent; throws when the cell holds no wall.</summary>
     public static Thing InWall(ThingDef def, IntVec3 cell, Rot4 facing)
     {

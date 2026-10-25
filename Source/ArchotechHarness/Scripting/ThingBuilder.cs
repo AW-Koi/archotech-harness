@@ -15,6 +15,7 @@ public sealed class ThingBuilder
     private IntVec3? _cell;
     private Pawn _pawn;
     private Rot4? _facing;
+    private bool _blueprint;
     private readonly ThingSetup _setup = new();
 
     internal ThingBuilder(ThingDef def, string caller)
@@ -78,6 +79,20 @@ public sealed class ThingBuilder
         return this;
     }
 
+    /// <summary>Makes a bed a medical bed.</summary>
+    public ThingBuilder Medical()
+    {
+        _setup.Medical = true;
+        return this;
+    }
+
+    /// <summary>Makes a bed a prisoner bed, so a room holding only prisoner beds is a prison cell.</summary>
+    public ThingBuilder ForPrisoners()
+    {
+        _setup.ForPrisoners = true;
+        return this;
+    }
+
     /// <summary>Adds a do-forever bill to a work table; repeatable.</summary>
     public ThingBuilder WithBill(RecipeDef recipe)
     {
@@ -92,6 +107,13 @@ public sealed class ThingBuilder
         return this;
     }
 
+    /// <summary>Places a blueprint of the building for colonists to build, in place of the finished building.</summary>
+    public ThingBuilder AsBlueprint()
+    {
+        _blueprint = true;
+        return this;
+    }
+
     /// <summary>A weapon is equipped, apparel is worn and anything else goes to the pawn's inventory.</summary>
     public ThingBuilder GivenTo(Pawn pawn)
     {
@@ -99,6 +121,7 @@ public sealed class ThingBuilder
         return this;
     }
 
+    /// <summary>Returns the blueprint when AsBlueprint is set.</summary>
     public Thing Spawn()
     {
         ScriptSession.Current?.Builders.Finish(_token);
@@ -113,6 +136,11 @@ public sealed class ThingBuilder
         }
 
         _setup.Validate(_def);
+        if (_blueprint)
+        {
+            return PlaceBlueprint();
+        }
+
         var thing = ThingFactory.Make(_def, _stuff, _quality);
         if (_cell is { } cell)
         {
@@ -126,5 +154,15 @@ public sealed class ThingBuilder
         thing.stackCount = System.Math.Min(_count, thing.def.stackLimit);
         EquipCommand.Give(_pawn, thing);
         return thing;
+    }
+
+    private Blueprint_Build PlaceBlueprint()
+    {
+        if (_def.category != ThingCategory.Building || _cell == null || !_setup.IsEmpty)
+        {
+            throw new HarnessException($"Spawn.Thing({_def.defName}).AsBlueprint places a building At a cell, with no starting state such as fuel or bills.");
+        }
+
+        return Blueprints.Place(World.Map, _def, _stuff, _cell.Value, _facing ?? Rot4.North);
     }
 }

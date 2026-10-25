@@ -6,7 +6,7 @@ using Verse;
 
 namespace ArchotechHarness.Commands;
 
-/// <summary>The state a spawned thing starts in: fuel, charge, a crop, bills and stored stacks.</summary>
+/// <summary>The state a spawned thing starts in: fuel, charge, a crop, bed use, bills and stored stacks.</summary>
 public sealed class ThingSetup
 {
     public bool Fuelled { get; set; }
@@ -15,9 +15,16 @@ public sealed class ThingSetup
 
     public ThingDef Crop { get; set; }
 
+    public bool Medical { get; set; }
+
+    public bool ForPrisoners { get; set; }
+
     public List<RecipeDef> Bills { get; } = new();
 
     public List<StoredStack> Stored { get; } = new();
+
+    /// <summary>Whether no option is set, as a blueprint requires.</summary>
+    public bool IsEmpty => !Fuelled && !Charged && Crop == null && !Medical && !ForPrisoners && Bills.Count == 0 && Stored.Count == 0;
 
     /// <summary>Throws when the def can't take an option, before anything spawns.</summary>
     public void Validate(ThingDef def)
@@ -25,6 +32,8 @@ public sealed class ThingSetup
         Require(!Fuelled || def.GetCompProperties<CompProperties_Refuelable>() != null, def, "Fuelled", "has no fuel tank");
         Require(!Charged || def.GetCompProperties<CompProperties_Battery>() != null, def, "Charged", "is not a battery");
         Require(Crop == null || Is<Building_PlantGrower>(def), def, "Growing", "is not a plant grower such as a plant pot");
+        Require(!Medical || Is<Building_Bed>(def), def, "Medical", "is not a bed");
+        Require(!ForPrisoners || Is<Building_Bed>(def), def, "ForPrisoners", "is not a bed");
         Require(Bills.Count == 0 || Is<IBillGiver>(def), def, "WithBill", "is not a work table");
         Require(Stored.Count == 0 || Is<Building_Storage>(def), def, "Holding", "is not storage such as a shelf");
     }
@@ -48,6 +57,16 @@ public sealed class ThingSetup
             foreach (var cell in grower.OccupiedRect())
             {
                 PlantSower.Sow(Crop, cell, thing.Map, 1f);
+            }
+        }
+
+        if (thing is Building_Bed bed)
+        {
+            bed.Medical = Medical || bed.Medical;
+            if (ForPrisoners)
+            {
+                bed.ForPrisoners = true;
+                bed.GetRoom()?.Notify_RoomShapeChanged();
             }
         }
 

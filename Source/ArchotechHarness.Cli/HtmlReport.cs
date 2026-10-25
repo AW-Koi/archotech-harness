@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 namespace ArchotechHarness.Cli;
 
-/// <summary>Writes a single-page HTML report: per scenario its checks, notes, screenshots, game errors and timing.</summary>
+/// <summary>Writes a single-page HTML report: per scenario its checks, notes, screenshots, attachments, game errors and timing.</summary>
 /// <remarks>Screenshots are linked by paths relative to the report, so keep the run folder together.</remarks>
 public static class HtmlReport
 {
@@ -22,6 +22,8 @@ public static class HtmlReport
         img { max-width: 100%; border-radius: 4px; margin: 6px 0; }
         table { border-collapse: collapse; } td { border-top: 1px solid var(--line); padding: 2px 10px 2px 0; vertical-align: top; }
         """;
+
+    private static readonly HashSet<string> InlineExtensions = new(StringComparer.OrdinalIgnoreCase) { ".txt", ".log", ".md", ".json", ".csv" };
 
     public static void Write(string path, IReadOnlyList<ScenarioOutcome> outcomes, IReadOnlyList<GameLoad>? loads = null)
     {
@@ -109,6 +111,7 @@ public static class HtmlReport
             html.Append($"<figure><img src=\"{Encode(relative)}\" alt=\"{Encode(Path.GetFileName(shot))}\" loading=\"lazy\"><figcaption class=\"muted\">{Encode(Path.GetFileName(shot))}</figcaption></figure>");
         }
 
+        AppendAttachments(html, report?["attachments"] as JsonArray, reportDirectory);
         if (report?["video"]?.ToString() is { } video)
         {
             var relative = Path.GetRelativePath(reportDirectory, video).Replace('\\', '/');
@@ -120,6 +123,29 @@ public static class HtmlReport
         }
 
         html.Append("</details>");
+    }
+
+    private static void AppendAttachments(StringBuilder html, JsonArray? attachments, string reportDirectory)
+    {
+        var paths = attachments?.Select(a => a?.ToString()).OfType<string>().ToList() ?? [];
+        if (paths.Count == 0)
+        {
+            return;
+        }
+
+        html.Append("<h3>Attachments</h3>");
+        foreach (var path in paths)
+        {
+            var name = Path.GetFileName(path);
+            var relative = Path.GetRelativePath(reportDirectory, path).Replace('\\', '/');
+            html.Append($"<details><summary><a href=\"{Encode(relative)}\">{Encode(name)}</a></summary>");
+            if (InlineExtensions.Contains(Path.GetExtension(path)) && File.Exists(path))
+            {
+                html.Append($"<pre>{Encode(File.ReadAllText(path))}</pre>");
+            }
+
+            html.Append("</details>");
+        }
     }
 
     private static void AppendTimeline(StringBuilder html, JsonArray? steps)

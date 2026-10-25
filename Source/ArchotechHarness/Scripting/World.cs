@@ -27,10 +27,32 @@ public static class World
             .Where(t => area == null || area.Value.Contains(t.Position))
             .ToList();
 
+    /// <summary>Blueprints and construction frames still to finish, optionally only inside an area.</summary>
+    public static IReadOnlyList<Thing> Unbuilt(CellRect? area = null) =>
+        Map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint)
+            .Concat(Map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingFrame))
+            .Where(t => t.Faction == RimWorld.Faction.OfPlayer)
+            .Where(t => area == null || area.Value.Contains(t.Position))
+            .ToList();
+
     /// <summary>A spawned pawn by its short name (nickname) or ThingID.</summary>
     public static Pawn Pawn(string name) =>
         Map.mapPawns.AllPawnsSpawned.FirstOrDefault(p => p.ThingID == name || p.LabelShort == name)
         ?? throw new HarnessException($"No spawned pawn called '{name}'.");
+
+    /// <summary>The first faction of this def in the world, generated and added when the world has none.</summary>
+    public static Faction Faction(FactionDef def)
+    {
+        if (Find.FactionManager.FirstFactionOfDef(def) is { } existing)
+        {
+            return existing;
+        }
+
+        var faction = FactionGenerator.NewGeneratedFaction(new FactionGeneratorParms(def));
+        Find.FactionManager.Add(faction);
+        ScriptSession.Current?.Timeline.Add("world", $"generated faction {faction.Name} ({def.defName})");
+        return faction;
+    }
 
     /// <summary>Marks the area as home, where colonists clean, fight fires and repair.</summary>
     public static void Home(CellRect area)

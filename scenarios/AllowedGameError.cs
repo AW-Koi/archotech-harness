@@ -8,10 +8,12 @@ public sealed class AllowedGameError : HarnessScenario
 
     public override Task Run()
     {
+        // The scenario logs the same error twice and closes the log window it opens
         Log.Error(DeliberateError);
         Log.Error(DeliberateError);
         Find.WindowStack.TryRemove(typeof(LudeonTK.EditWindow_Log), doCloseSound: false);
 
+        // Both errors count, and only the allow list lets them pass
         var errors = ScriptSession.Current!.GameErrors;
         Check(errors.Distinct.Single(e => e.Text == DeliberateError).Count == 2);
         Check(errors.FailureMessage(GameErrorAllowList.None) != null);

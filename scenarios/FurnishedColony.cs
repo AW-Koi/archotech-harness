@@ -6,6 +6,7 @@ public sealed class FurnishedColony : HarnessScenario
 {
     public override async Task Run()
     {
+        // A calm world with a cleared yard marked as home
         Clock.Speed = TimeSpeed.Paused;
         World.Calm();
         World.RemoveHostiles();
@@ -43,6 +44,7 @@ public sealed class FurnishedColony : HarnessScenario
             .Roofed()
             .Build();
 
+        // Two partners share the colony
         var lover = Spawn.Colonist().WithName("Ada").Inside(dining).Doing(WorkTypeDefOf.Hauling).Spawn();
         var partner = Spawn.Colonist().WithName("Bram").At(new IntVec3(c.x, 0, c.z - 4)).Doing(WorkTypeDefOf.Hauling).Spawn();
         Colonists.RemoveAllExcept(lover, partner);
@@ -147,6 +149,7 @@ public sealed class FurnishedColony : HarnessScenario
         await Until(() => consumers.All(p => p.PowerOn), timeoutSeconds: 30);
         Clock.Speed = TimeSpeed.Paused;
 
+        // The finished colony by daylight
         Clock.SkipToHour(10);
         Camera.Frame(yard);
         await Shot("colony");

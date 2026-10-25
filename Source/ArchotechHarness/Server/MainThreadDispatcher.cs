@@ -25,12 +25,17 @@ public static class MainThreadDispatcher
             Start(command);
         }
 
-        if (ScriptSession.Current is { } script)
+        var script = ScriptSession.Current;
+        if (script != null)
         {
             MainThreadContext.Instance.Run(script.Tick);
         }
 
-        MainThreadContext.Instance.Drain();
+        if (script is not { Control.Paused: true })
+        {
+            var ran = MainThreadContext.Instance.Drain();
+            script?.Control.ContinuationsRan(ran + script.TakeProgress());
+        }
 
         for (var i = Waiting.Count - 1; i >= 0; i--)
         {

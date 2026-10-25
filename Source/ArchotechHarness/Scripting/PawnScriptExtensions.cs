@@ -3,6 +3,7 @@ using System.Linq;
 using ArchotechHarness.Commands;
 using RimWorld;
 using Verse;
+using Verse.AI;
 
 namespace ArchotechHarness.Scripting;
 
@@ -26,4 +27,14 @@ public static class PawnScriptExtensions
     /// <summary>The right-click options the pawn would get at a cell, as the player would see them.</summary>
     public static IReadOnlyList<FloatMenuOption> FloatMenuAt(this Pawn pawn, IntVec3 cell) =>
         FloatMenuMakerMap.GetOptions([pawn], cell.ToVector3Shifted(), out _);
+
+    /// <summary>Drafts the pawn where it stands.</summary>
+    public static void Draft(this Pawn pawn) => pawn.drafter.Drafted = true;
+
+    /// <summary>Drafts the pawn and orders it to the cell, where it holds and fires at will.</summary>
+    public static void HoldAt(this Pawn pawn, IntVec3 cell)
+    {
+        pawn.drafter.Drafted = true;
+        pawn.jobs.TryTakeOrderedJob(JobMaker.MakeJob(JobDefOf.Goto, cell), JobTag.DraftedOrder);
+    }
 }
