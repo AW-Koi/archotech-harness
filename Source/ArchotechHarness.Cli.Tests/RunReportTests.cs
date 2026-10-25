@@ -76,6 +76,36 @@ public sealed class RunReportTests : IDisposable
         Assert.Contains("<img src=\"MopsTheFloor/before.png\"", File.ReadAllText(path));
     }
 
+    [Fact]
+    public void Html_Timeline_ListsEachStepWithItsTimingAndLine()
+    {
+        var report = JsonNode.Parse(PassedReport)!.AsObject();
+        report["timeline"] = JsonNode.Parse("""
+            [{"at":0.1,"seconds":null,"tick":12,"kind":"build","text":"Build.Room() at Mops.cs:9","line":null,"passed":null},
+             {"at":0.4,"seconds":3.25,"tick":2400,"kind":"until","text":"room.Filth().Count < before","line":21,"passed":true}]
+            """);
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("MopsTheFloor", report.ToJsonString())]);
+
+        var html = File.ReadAllText(path);
+        Assert.Contains("<td>until</td><td><code>room.Filth().Count &lt; before</code></td><td>21</td><td>3.25 s</td>", html);
+        Assert.True(html.IndexOf("Build.Room() at Mops.cs:9", StringComparison.Ordinal) < html.IndexOf("room.Filth().Count &lt; before", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Html_Video_IsEmbeddedByItsPathRelativeToTheReport()
+    {
+        var video = _temp.WriteFile("MopsTheFloor/video.mp4", "");
+        var report = JsonNode.Parse(PassedReport)!.AsObject();
+        report["video"] = video;
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("MopsTheFloor", report.ToJsonString())]);
+
+        Assert.Contains("<video controls src=\"MopsTheFloor/video.mp4\"", File.ReadAllText(path));
+    }
+
     private ScenarioOutcome Outcome(string name, string report)
     {
         var json = JsonNode.Parse(report)!.AsObject();

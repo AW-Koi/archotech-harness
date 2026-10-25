@@ -74,6 +74,7 @@ public static class HtmlReport
             html.Append("</table>");
         }
 
+        AppendTimeline(html, report?["timeline"] as JsonArray);
         AppendList(html, "Game errors", report?["gameErrors"]?.AsArray().Select(e => $"<pre class=\"bad\">{Encode(e?.ToString())}</pre>"));
         foreach (var shot in report?["shots"]?.AsArray().Select(s => s?.ToString()).OfType<string>() ?? [])
         {
@@ -81,7 +82,37 @@ public static class HtmlReport
             html.Append($"<figure><img src=\"{Encode(relative)}\" alt=\"{Encode(Path.GetFileName(shot))}\" loading=\"lazy\"><figcaption class=\"muted\">{Encode(Path.GetFileName(shot))}</figcaption></figure>");
         }
 
+        if (report?["video"]?.ToString() is { } video)
+        {
+            var relative = Path.GetRelativePath(reportDirectory, video).Replace('\\', '/');
+            html.Append($"<video controls src=\"{Encode(relative)}\" style=\"max-width:100%\"></video>");
+        }
+        else if (report?["videoError"]?.ToString() is { } videoError)
+        {
+            html.Append($"<p class=\"muted\">No video: {Encode(videoError)}</p>");
+        }
+
         html.Append("</details>");
+    }
+
+    private static void AppendTimeline(StringBuilder html, JsonArray? steps)
+    {
+        if (steps is not { Count: > 0 })
+        {
+            return;
+        }
+
+        html.Append("<h3>Timeline</h3><table><tr><td>At</td><td>Tick</td><td>Step</td><td>What</td><td>Line</td><td>Took</td></tr>");
+        foreach (var step in steps.OfType<JsonObject>())
+        {
+            var failed = step["passed"]?.GetValue<bool>() == false;
+            html.Append(failed ? "<tr class=\"bad\">" : "<tr>");
+            html.Append($"<td>{Seconds(step["at"]?.GetValue<double>() ?? 0)}</td><td>{step["tick"]}</td>");
+            html.Append($"<td>{Encode(step["kind"]?.ToString())}</td><td><code>{Encode(step["text"]?.ToString())}</code></td>");
+            html.Append($"<td>{step["line"]}</td><td>{(step["seconds"] is JsonValue took ? Seconds(took.GetValue<double>()) : "")}</td></tr>");
+        }
+
+        html.Append("</table>");
     }
 
     private static void AppendList(StringBuilder html, string title, IEnumerable<string>? items)

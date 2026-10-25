@@ -22,7 +22,7 @@ In PowerShell, use `.\archo.ps1` instead of `./archo`.
 
 The first run builds `archo` and the harness mod. The game opens, the scenario runs and the game closes. `archo` prints a JSON report and saves it, with the screenshots, in `.harness/runs/<scenario>-<time>/`.
 
-Run every scenario in a folder with `./archo test scenarios`. That writes `report.html` to `.harness/test-runs/<time>/`.
+Run every scenario in a folder with `./archo test scenarios`. That writes `report.html` to `.harness/test-runs/<time>/`, with each scenario's checks, notes, screenshots and a timeline of its steps.
 
 ## Writing a scenario
 
@@ -149,6 +149,7 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 | `archo test --filter GLOB` | Runs only matching scenarios, such as `--filter "Mop*"`. Repeat it to match several patterns. |
 | `archo test --retries N` | Retries a failed scenario up to N times. |
 | `archo test --workers N` | Runs N games at once. `--workers auto` picks a number that fits your machine. |
+| `archo test --video` | Records a video of each scenario into the report. It needs ffmpeg, on the PATH, installed with WinGet, or named by the `FFMPEG` environment variable. `--video-fps N` sets the frame rate (default 5). `run` takes it too. |
 | `archo launch` | Starts a game and leaves it running for `send`. `--mod DIR` and `--dlc NAME` choose what it loads. |
 | `archo send COMMAND ['{json}']` | Sends one command to the running game, such as `status`. |
 | `archo status` | Lists your running games. |

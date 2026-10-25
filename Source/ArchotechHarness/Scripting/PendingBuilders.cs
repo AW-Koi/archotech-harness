@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace ArchotechHarness.Scripting;
 
 /// <summary>Scenario builders started but not yet finished with their terminal call, such as .Spawn().</summary>
-public sealed class PendingBuilders
+public sealed class PendingBuilders(Action<string> finished = null)
 {
     private readonly List<Token> _pending = new();
 
@@ -17,7 +18,13 @@ public sealed class PendingBuilders
         return token;
     }
 
-    public void Finish(Token token) => _pending.Remove(token);
+    public void Finish(Token token)
+    {
+        if (_pending.Remove(token))
+        {
+            finished?.Invoke(token.Description.Split(" ends with ")[0]);
+        }
+    }
 
     /// <summary>Identifies one tracked builder.</summary>
     public sealed class Token(string description)

@@ -15,6 +15,7 @@ public static class Clock
         {
             var session = ScriptSession.Current ?? throw new InvalidOperationException("No harness script is running.");
             session.HeldSpeed = value;
+            session.Timeline.Add("speed", value.ToString());
             Find.TickManager.CurTimeSpeed = value;
         }
     }

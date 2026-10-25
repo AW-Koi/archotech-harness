@@ -28,6 +28,11 @@ public static class RunScenarioCommand
         }
 
         var session = ScriptSession.Begin(Arguments.RequiredString(args, "outputDirectory"));
+        if (Arguments.Float(args, "recordFps", 0) is var fps and > 0)
+        {
+            session.StartRecording(System.IO.Path.Combine(session.OutputDirectory, "frames"), fps);
+        }
+
         session.HeldSpeed = TimeSpeed.Paused;
         var pauseDeadline = DateTime.UtcNow + PauseTimeout;
         Task scenario = null;

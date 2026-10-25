@@ -18,14 +18,14 @@ public static class Script
 
     /// <summary>Waits until the condition holds, checking once per frame; throws TimeoutException after the timeout.</summary>
     public static Task Until(Func<bool> condition, double timeoutSeconds = DefaultTimeoutSeconds,
-        [CallerArgumentExpression(nameof(condition))] string what = null) =>
-        Session.WaitFor(condition, timeoutSeconds, what);
+        [CallerArgumentExpression(nameof(condition))] string what = null, [CallerLineNumber] int line = 0) =>
+        Timed("until", what, line, Session.WaitFor(condition, timeoutSeconds, what));
 
     /// <summary>Waits for game ticks to pass, so the game must not be paused.</summary>
-    public static Task Ticks(int ticks, double timeoutSeconds = DefaultTimeoutSeconds)
+    public static Task Ticks(int ticks, double timeoutSeconds = DefaultTimeoutSeconds, [CallerLineNumber] int line = 0)
     {
         var target = Find.TickManager.TicksGame + ticks;
-        return Session.WaitFor(() => Find.TickManager.TicksGame >= target, timeoutSeconds, $"{ticks} ticks");
+        return Timed("ticks", $"{ticks} ticks", line, Session.WaitFor(() => Find.TickManager.TicksGame >= target, timeoutSeconds, $"{ticks} ticks"));
     }
 
     public static Task Frames(int frames = 1)
@@ -35,7 +35,7 @@ public static class Script
     }
 
     /// <summary>Saves a screenshot, UI included, as name.png in the run folder and returns its path.</summary>
-    public static async Task<string> Shot(string name)
+    public static async Task<string> Shot(string name, [CallerLineNumber] int line = 0)
     {
         if (string.IsNullOrEmpty(name))
         {
@@ -44,21 +44,23 @@ public static class Script
 
         var path = Path.IsPathRooted(name) ? name : Path.Combine(Session.OutputDirectory, name.EndsWith(".png") ? name : name + ".png");
         await Command("screenshot", new JsonObject { ["path"] = path });
-        Session.Shot(path);
+        Session.Shot(path, line);
         return path;
     }
 
     /// <summary>Records a check; a failed check fails the run but the script carries on.</summary>
-    public static bool Check(bool condition, [CallerArgumentExpression(nameof(condition))] string what = null)
+    public static bool Check(bool condition, [CallerArgumentExpression(nameof(condition))] string what = null,
+        [CallerLineNumber] int line = 0)
     {
-        Session.Check(condition, what);
+        Session.Check(condition, what, line);
         return condition;
     }
 
     /// <summary>Records a check and stops the script when it fails.</summary>
-    public static void Require(bool condition, [CallerArgumentExpression(nameof(condition))] string what = null)
+    public static void Require(bool condition, [CallerArgumentExpression(nameof(condition))] string what = null,
+        [CallerLineNumber] int line = 0)
     {
-        Session.Check(condition, what);
+        Session.Check(condition, what, line);
         if (!condition)
         {
             throw new ScriptCheckFailedException(what);
@@ -66,7 +68,7 @@ public static class Script
     }
 
     /// <summary>Adds a named value to the run report.</summary>
-    public static void Note(string key, object value) => Session.Note(key, value);
+    public static void Note(string key, object value, [CallerLineNumber] int line = 0) => Session.Note(key, value, line);
 
     /// <summary>Runs any harness command, as archo send would, and returns its JSON result.</summary>
     public static async Task<JsonNode> Command(string name, JsonObject arguments = null)
@@ -80,6 +82,23 @@ public static class Script
         JsonNode value = null;
         await Session.WaitFor(() => (value = result.Poll()) != null, DefaultTimeoutSeconds, name);
         return value;
+    }
+
+    /// <summary>Records a wait on the timeline when it ends, with how long it took and whether it timed out.</summary>
+    private static async Task Timed(string kind, string what, int line, Task wait)
+    {
+        var timeline = Session.Timeline;
+        var startedAt = timeline.Elapsed;
+        try
+        {
+            await wait;
+            timeline.Add(kind, what, line, startedAt, passed: true);
+        }
+        catch (TimeoutException)
+        {
+            timeline.Add(kind, what + " (timed out)", line, startedAt, passed: false);
+            throw;
+        }
     }
 
     internal static JsonNode CommandNow(string name, JsonObject arguments)

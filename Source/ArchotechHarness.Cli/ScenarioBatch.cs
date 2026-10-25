@@ -200,7 +200,7 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
 
                     _freshGame = false;
                     var timer = Stopwatch.StartNew();
-                    report = ScenarioInvoker.Run(new HarnessClient(session.Port), assemblies[scenario.ProjectFile], scenario.TypeName, outputDirectory);
+                    report = ScenarioInvoker.Run(new HarnessClient(session.Port), assemblies[scenario.ProjectFile], scenario.TypeName, outputDirectory, options.VideoFps);
                     report["seconds"] ??= Math.Round(timer.Elapsed.TotalSeconds, 2);
                 }
                 catch (ScenarioException e)

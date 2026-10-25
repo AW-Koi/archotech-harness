@@ -3,7 +3,7 @@ namespace ArchotechHarness.Cli;
 /// <summary>Splits archo arguments into positionals, --flags and --name value options.</summary>
 public sealed class CommandLineOptions
 {
-    private static readonly HashSet<string> Flags = ["--keep-open", "--problems", "--attach", "--wait"];
+    private static readonly HashSet<string> Flags = ["--keep-open", "--problems", "--attach", "--wait", "--video"];
 
     private readonly List<string> _positionals = [];
     private readonly List<(string Name, string Value)> _values = [];
@@ -45,6 +45,10 @@ public sealed class CommandLineOptions
     public IReadOnlyList<string> Positionals => _positionals;
 
     public string? PositionalOrNull(int index) => index < _positionals.Count ? _positionals[index] : null;
+
+    /// <summary>Video frames per second: --video-fps, or 5 with --video, or 0 for no video.</summary>
+    public double VideoFps() =>
+        Value("--video-fps") is { } fps ? double.Parse(fps, System.Globalization.CultureInfo.InvariantCulture) : Flag("--video") ? 5 : 0;
 
     public int Port() => Value("--port") is { } port ? int.Parse(port) : 0;
 

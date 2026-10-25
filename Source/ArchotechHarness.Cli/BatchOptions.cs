@@ -7,4 +7,5 @@ public sealed record BatchOptions(
     int Retries,
     string OutputDirectory,
     int Port,
-    string? Workers = null);
+    string? Workers = null,
+    double VideoFps = 0);

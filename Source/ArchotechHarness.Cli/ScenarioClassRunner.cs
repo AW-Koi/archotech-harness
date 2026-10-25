@@ -6,7 +6,7 @@ namespace ArchotechHarness.Cli;
 /// <remarks>It boots its own session, or with attach uses the running one and leaves it open.</remarks>
 public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter output)
 {
-    public bool Run(string sourceFile, string runDirectory, bool keepOpen, bool attach, int port)
+    public bool Run(string sourceFile, string runDirectory, bool keepOpen, bool attach, int port, double videoFps = 0)
     {
         var scenario = ScenarioClassReader.Read(sourceFile);
         var session = attach ? sessions.Current : null;
@@ -37,7 +37,7 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
 
         session ??= sessions.Start(new LaunchOptions(
             scenario.Dlcs, scenario.Mods.Select(m => m with { Build = null }).ToList(), scenario.Window, port));
-        var report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory);
+        var report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory, videoFps);
         report["scenario"] = scenario.TypeName;
         report["runDirectory"] = runDirectory;
         if (startsSession && !keepOpen)

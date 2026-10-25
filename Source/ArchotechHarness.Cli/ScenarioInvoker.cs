@@ -10,7 +10,8 @@ public static class ScenarioInvoker
     private const double NewGameTimeoutSeconds = 180;
 
     /// <summary>Runs one scenario class; a harness or connection failure becomes a failed report.</summary>
-    public static JsonObject Run(HarnessClient client, string assembly, string typeName, string outputDirectory)
+    /// <remarks>With videoFps above 0 the game records frames, and the report gets "video" or "videoError".</remarks>
+    public static JsonObject Run(HarnessClient client, string assembly, string typeName, string outputDirectory, double videoFps = 0)
     {
         Directory.CreateDirectory(outputDirectory);
         try
@@ -21,10 +22,24 @@ public static class ScenarioInvoker
                 ["entryType"] = typeName,
                 ["outputDirectory"] = outputDirectory,
                 ["timeoutSeconds"] = ScenarioTimeoutSeconds,
+                ["recordFps"] = videoFps,
             });
-            return response["ok"]?.GetValue<bool>() == true
+            var report = response["ok"]?.GetValue<bool>() == true
                 ? response["result"]!.AsObject()
                 : new JsonObject { ["passed"] = false, ["error"] = response["error"]?.DeepClone() };
+            if (videoFps > 0 && report["frames"] is JsonValue frames)
+            {
+                try
+                {
+                    report["video"] = VideoEncoder.Encode(frames.ToString(), videoFps, Path.Combine(outputDirectory, "video.mp4"));
+                }
+                catch (ScenarioException e)
+                {
+                    report["videoError"] = e.Message;
+                }
+            }
+
+            return report;
         }
         catch (Exception e) when (e is IOException or SocketException)
         {
