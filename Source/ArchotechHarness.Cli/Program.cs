@@ -17,6 +17,7 @@ public static class Program
           archo log [--count N] [--problems]
           archo stop
           archo restore
+          archo clean [--keep N|all] [--max-mb N] [--dry-run]
         """;
 
     public static int Main(string[] args)
@@ -43,6 +44,7 @@ public static class Program
                 "log" => Log(paths, options),
                 "stop" => Print(Describe(sessions.Stop())),
                 "restore" => Print(Describe(sessions.Finish())),
+                "clean" => Clean(paths, sessions, options),
                 "watchdog" => Watchdog(sessions, options),
                 _ => throw new ScenarioException($"Unknown command '{args[0]}'.\n{Usage}"),
             };
@@ -68,6 +70,7 @@ public static class Program
             ? Path.GetFullPath(outDirectory)
             : Path.Combine(paths.RunsDirectory, $"{Path.GetFileNameWithoutExtension(file)}-{DateTime.Now:yyyyMMdd-HHmmss}");
         WaitIfAsked(sessions, options);
+        PruneOldRuns(paths, sessions);
         var passed = new ScenarioClassRunner(sessions, Console.Out)
             .Run(file, runDirectory, options.Flag("--keep-open"), options.Flag("--attach"), options.Port(), options.VideoFps());
         return passed ? 0 : 1;
@@ -78,8 +81,9 @@ public static class Program
         var scenarioPaths = options.Positionals.Count > 0 ? options.Positionals : [Directory.GetCurrentDirectory()];
         var outputDirectory = options.Value("--out") is { } outDirectory
             ? Path.GetFullPath(outDirectory)
-            : Path.Combine(paths.StateDirectory, "test-runs", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+            : Path.Combine(paths.TestRunsDirectory, DateTime.Now.ToString("yyyyMMdd-HHmmss"));
         WaitIfAsked(sessions, options);
+        PruneOldRuns(paths, sessions);
         var outcomes = new ScenarioBatch(sessions, Console.Out, Console.Error).Run(new BatchOptions(
             scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port(), options.Value("--workers"), options.VideoFps()));
         return outcomes.All(o => o.Passed) ? 0 : 1;
@@ -91,6 +95,39 @@ public static class Program
         {
             sessions.WaitUntilFree(TimeSpan.FromHours(1));
         }
+    }
+
+    private static void PruneOldRuns(HarnessPaths paths, SessionManager sessions)
+    {
+        if (sessions.Sessions.Count > 0)
+        {
+            return;
+        }
+
+        var result = RunRetention.Prune([paths.RunsDirectory, paths.TestRunsDirectory], RetentionPolicy.FromEnvironment(), dryRun: false);
+        if (result.Removed.Count > 0 || result.Failed.Count > 0)
+        {
+            Console.Error.WriteLine(
+                $"Pruned {result.Removed.Count} old run folder(s), freeing {result.FreedBytes / (1024 * 1024)} MB; {result.Failed.Count} could not be deleted. " +
+                "Set ARCHO_KEEP_RUNS and ARCHO_KEEP_MB to change what archo keeps.");
+        }
+    }
+
+    private static int Clean(HarnessPaths paths, SessionManager sessions, CommandLineOptions options)
+    {
+        sessions.ThrowIfOwnGameRunning("archo clean");
+        var policy = RetentionPolicy.Parse(
+            options.Value("--keep") ?? Environment.GetEnvironmentVariable("ARCHO_KEEP_RUNS"),
+            options.Value("--max-mb") ?? Environment.GetEnvironmentVariable("ARCHO_KEEP_MB"));
+        var dryRun = options.Flag("--dry-run");
+        var result = RunRetention.Prune([paths.RunsDirectory, paths.TestRunsDirectory], policy, dryRun);
+        return Print(new JsonObject
+        {
+            ["dryRun"] = dryRun,
+            ["removed"] = new JsonArray(result.Removed.Select(r => (JsonNode)r.Path).ToArray()),
+            ["freedMegabytes"] = Math.Round(result.FreedBytes / (1024.0 * 1024.0), 1),
+            ["failed"] = new JsonArray(result.Failed.Select(f => (JsonNode)f).ToArray()),
+        });
     }
 
     private static int Send(SessionManager sessions, CommandLineOptions options)

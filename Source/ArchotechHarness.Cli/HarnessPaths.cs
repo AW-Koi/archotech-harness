@@ -46,6 +46,8 @@ public sealed class HarnessPaths
 
     public string RunsDirectory => Path.Combine(StateDirectory, "runs");
 
+    public string TestRunsDirectory => Path.Combine(StateDirectory, "test-runs");
+
     public string PlayerLog => Path.Combine(PlayerDataDirectory, "Logs", "Player.log");
 
     /// <summary>A session's registry file; ids carry the checkout, so two checkouts never share one.</summary>

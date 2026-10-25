@@ -51,6 +51,15 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
         }
     }
 
+    /// <summary>Throws when a game from this checkout is running, naming the command that has to wait.</summary>
+    public void ThrowIfOwnGameRunning(string command)
+    {
+        if (Sessions.Count > 0)
+        {
+            throw new SessionBusyException($"A game from this checkout is running; run 'archo stop' before '{command}'.");
+        }
+    }
+
     /// <summary>Waits until no other session or game is running, checking every few seconds.</summary>
     public void WaitUntilFree(TimeSpan timeout)
     {
