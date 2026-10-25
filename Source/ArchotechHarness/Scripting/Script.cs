@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
@@ -57,7 +58,7 @@ public static class Script
     }
 
     /// <summary>Records a check and stops the script when it fails.</summary>
-    public static void Require(bool condition, [CallerArgumentExpression(nameof(condition))] string what = null,
+    public static void Require([DoesNotReturnIf(false)] bool condition, [CallerArgumentExpression(nameof(condition))] string what = null,
         [CallerLineNumber] int line = 0)
     {
         Session.Check(condition, what, line);
