@@ -92,7 +92,22 @@ The harness binds it when the scenario loads. A field whose def doesn't exist fa
 
 ### Mods and DLCs
 
-Attributes on the class say what the game loads. Paths are relative to the scenario file.
+Declare the mods every scenario loads once, as `ArchoMod` items in the scenarios `.csproj`. Paths are relative to the `.csproj`.
+
+```xml
+<ItemGroup>
+  <ArchoMod Include="../mod" Build="dotnet build" BuildIn=".." />
+</ItemGroup>
+```
+
+| Item | Does |
+| --- | --- |
+| `<ArchoMod Include="../mod" />` | Loads the mod in that folder. Repeat it for several mods. |
+| `<ArchoMod Include="../mod" Build="dotnet build" BuildIn=".." />` | Also builds the mod before the run. `BuildIn` defaults to the mod folder. |
+
+The harness reads these items as plain XML, so it skips conditions, imports and `$(...)` properties.
+
+Attributes on a class add to the project's mods for that scenario. Their paths are relative to the scenario file. A mod declared twice loads once.
 
 | Attribute | Does |
 | --- | --- |
@@ -114,6 +129,7 @@ Keep your scenarios next to your mod, for example in `MyMod/harness/`. Add this 
 
   <ItemGroup>
     <Reference Include="MyMod" HintPath="..\mod\1.7\Assemblies\MyMod.dll" Private="false" />
+    <ArchoMod Include="../mod" />
   </ItemGroup>
 
   <Target Name="RequireArchotechHarness" BeforeTargets="ResolveAssemblyReferences" Condition="!Exists('$(ArchoHome)\build\ArchotechScenarios.props')">
@@ -125,7 +141,7 @@ Keep your scenarios next to your mod, for example in `MyMod/harness/`. Add this 
 1. Set the `ARCHO_HOME` environment variable to your harness clone. A clone in a sibling `ArchotechHarness` folder also works.
 2. Run `./archo --help` in the harness once, so the harness mod is built.
 3. Change the `Reference` to your mod's assembly, so scenarios can use its types and DefOf classes.
-4. Put `[Mod("../mod")]` on your scenarios, then run them with `<harness>/archo test MyMod/harness`.
+4. Point `ArchoMod` at your mod folder, then run the scenarios with `<harness>/archo test MyMod/harness`.
 
 To edit scenarios in VS Code, open a folder, not a single file. Add `harness/Scenarios.csproj` to your mod's .sln, or open the `harness` folder.
 
