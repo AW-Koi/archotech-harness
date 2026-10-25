@@ -125,8 +125,8 @@ public sealed class ScriptSession
         new((failure.StackTrace ?? "")
             .Split('\n')
             .Select(l => l.Trim())
-            .Where(l => l.Contains(".csx:line") || l.Contains(".cs:line"))
-            .Where(l => !l.Contains("DevHarness.Scripting"))
+            .Where(l => l.Contains(".cs:line"))
+            .Where(l => !l.StartsWith("at DevHarness.", StringComparison.Ordinal))
             .Select(l => (JsonNode)l)
             .ToArray());
 }

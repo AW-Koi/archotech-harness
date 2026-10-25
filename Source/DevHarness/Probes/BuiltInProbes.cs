@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using DevHarness.Commands;
+using DevHarness.Scripting;
 using Verse;
 
 namespace DevHarness.Probes;
@@ -70,14 +71,7 @@ public static class BuiltInProbes
     /// <summary>The pawn's memory thoughts, optionally only "def": def, mood offset and the other pawn for social memories.</summary>
     private static JsonNode Thoughts(JsonObject args)
     {
-        var pawn = Arguments.Pawn(args);
-        var memories = pawn.needs?.mood?.thoughts?.memories?.Memories ?? new List<RimWorld.Thought_Memory>();
-        var defName = Arguments.String(args, "def");
-        if (defName != null)
-        {
-            memories = memories.Where(m => m.def.defName == defName).ToList();
-        }
-
+        var memories = Arguments.Pawn(args).Memories(Arguments.String(args, "def"));
         return new JsonObject
         {
             ["has"] = memories.Count > 0,
@@ -96,12 +90,10 @@ public static class BuiltInProbes
         var map = Arguments.CurrentMap();
         var pawn = Arguments.Pawn(args);
         var cell = Arguments.Cell(args, "cell", map);
-        var options = RimWorld.FloatMenuMakerMap.GetOptions(new List<Pawn> { pawn }, cell.ToVector3Shifted(), out _);
         var labelContains = Arguments.String(args, "labelContains");
-        if (labelContains != null)
-        {
-            options = options.Where(o => o.Label.IndexOf(labelContains, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
-        }
+        var options = pawn.FloatMenuAt(cell)
+            .Where(o => labelContains == null || o.Label.IndexOf(labelContains, StringComparison.OrdinalIgnoreCase) >= 0)
+            .ToList();
 
         return new JsonObject
         {

@@ -8,4 +8,3 @@ mod/*/Assemblies/
 .bin/
 *.png
 !docs/**/*.png
-.rwh-editor.csx

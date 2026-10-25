@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
+using RimWorld;
 using Verse;
 
 namespace DevHarness.Scripting;
@@ -37,4 +39,16 @@ public static class PawnScriptExtensions
 
     /// <summary>The defName of the pawn's current job, or null when idle.</summary>
     public static string CurrentJob(this Pawn pawn) => pawn.CurJobDef?.defName;
+
+    /// <summary>The pawn's memory thoughts, optionally only those of one ThoughtDef.</summary>
+    public static IReadOnlyList<Thought_Memory> Memories(this Pawn pawn, string thoughtDef = null) =>
+        (pawn.needs?.mood?.thoughts?.memories?.Memories ?? new List<Thought_Memory>())
+            .Where(m => thoughtDef == null || m.def.defName == thoughtDef)
+            .ToList();
+
+    public static bool HasThought(this Pawn pawn, string thoughtDef) => pawn.Memories(thoughtDef).Count > 0;
+
+    /// <summary>The right-click options the pawn would get at a cell, as the player would see them.</summary>
+    public static IReadOnlyList<FloatMenuOption> FloatMenuAt(this Pawn pawn, IntVec3 cell) =>
+        FloatMenuMakerMap.GetOptions(new List<Pawn> { pawn }, cell.ToVector3Shifted(), out _);
 }

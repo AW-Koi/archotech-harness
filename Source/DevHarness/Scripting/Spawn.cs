@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -9,9 +10,9 @@ namespace DevHarness.Scripting;
 public static class Spawn
 {
     /// <summary>Generates a colonist able to do the listed work; with onlyWork, every other work type is off.</summary>
-    /// <remarks>Traits are "defName" or "defName:degree". The colonist stands in the room's centre unless "at" is given.</remarks>
+    /// <remarks>Traits are "defName" or "defName:degree". incapableOf swaps in a childhood that disables those work tags.</remarks>
     public static Pawn Colonist(string name, IntVec3? at = null, HarnessRoom inside = null, IEnumerable<WorkTypeDef> work = null,
-        IEnumerable<string> traits = null, bool onlyWork = true, string kind = "Colonist")
+        IEnumerable<string> traits = null, bool onlyWork = true, string kind = "Colonist", WorkTags incapableOf = WorkTags.None)
     {
         var cell = at ?? inside?.Center ?? World.Center;
         var workObject = new JsonObject();
@@ -28,9 +29,15 @@ public static class Spawn
             ["work"] = workObject,
             ["onlyWork"] = onlyWork,
             ["traits"] = new JsonArray((traits ?? Enumerable.Empty<string>()).Select(t => (JsonNode)t).ToArray()),
+            ["incapableOf"] = new JsonArray(Enum.GetValues<WorkTags>()
+                .Where(tag => tag != WorkTags.None && IsSingleFlag(tag) && incapableOf.HasFlag(tag))
+                .Select(tag => (JsonNode)tag.ToString())
+                .ToArray()),
         });
         return World.Pawn(result!["id"]!.GetValue<string>());
     }
+
+    private static bool IsSingleFlag(WorkTags tag) => ((int)tag & ((int)tag - 1)) == 0;
 
     public static Thing Thing(string def, IntVec3 at, int count = 1, string stuff = null)
     {
