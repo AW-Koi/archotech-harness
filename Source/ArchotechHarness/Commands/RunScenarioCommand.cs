@@ -4,13 +4,16 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using ArchotechHarness.Scripting;
+using Verse;
 
 namespace ArchotechHarness.Commands;
 
 /// <summary>Loads a built scenarios assembly and runs one HarnessScenario's Run() on the main thread.</summary>
-/// <remarks>Arguments: "assembly" (path), "entryType" (full class name), "outputDirectory". Replies with the run report when Run() ends.</remarks>
+/// <remarks>Arguments: "assembly" (path), "entryType" (full class name), "outputDirectory". The game is paused before Run() starts, so the quick-test colonists stand still. Replies with the report when Run() ends.</remarks>
 public static class RunScenarioCommand
 {
+    private static readonly TimeSpan PauseTimeout = TimeSpan.FromSeconds(15);
+
     public static CommandResult Run(JsonObject args)
     {
         Arguments.CurrentMap();
@@ -24,6 +27,36 @@ public static class RunScenarioCommand
         }
 
         var session = ScriptSession.Begin(Arguments.RequiredString(args, "outputDirectory"));
+        session.HeldSpeed = TimeSpeed.Paused;
+        var pauseDeadline = DateTime.UtcNow + PauseTimeout;
+        Task scenario = null;
+
+        return CommandResult.Pending(() =>
+        {
+            if (scenario == null)
+            {
+                if (Find.TickManager.CurTimeSpeed != TimeSpeed.Paused && DateTime.UtcNow < pauseDeadline)
+                {
+                    return null;
+                }
+
+                scenario = Start(type);
+            }
+
+            if (!scenario.IsCompleted)
+            {
+                return null;
+            }
+
+            var report = session.Report(scenario);
+            report["mods"] = DeclaredMods(type);
+            session.End();
+            return report;
+        });
+    }
+
+    private static Task Start(Type type)
+    {
         Task scenario = null;
         MainThreadContext.Instance.Run(() =>
         {
@@ -36,19 +69,7 @@ public static class RunScenarioCommand
                 scenario = Task.FromException(e is TargetInvocationException { InnerException: { } inner } ? inner : e);
             }
         });
-
-        return CommandResult.Pending(() =>
-        {
-            if (!scenario.IsCompleted)
-            {
-                return null;
-            }
-
-            var report = session.Report(scenario);
-            report["mods"] = DeclaredMods(type);
-            session.End();
-            return report;
-        });
+        return scenario;
     }
 
     private static JsonArray DeclaredMods(Type type) =>

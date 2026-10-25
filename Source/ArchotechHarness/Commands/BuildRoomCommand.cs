@@ -45,6 +45,11 @@ public static class BuildRoomCommand
             {
                 map.roofGrid.SetRoof(cell, RoofDefOf.RoofConstructed);
             }
+
+            foreach (var filth in cell.GetThingList(map).OfType<Filth>().ToList())
+            {
+                filth.Destroy();
+            }
         }
 
         if (Arguments.Bool(args, "home", true))

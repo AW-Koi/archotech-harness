@@ -75,6 +75,8 @@ public sealed class MopsTheFloor : HarnessScenario
 }
 ```
 
+The game is paused before `Run()` starts, so the quick-test colonists stand still until your scenario sets a speed. Remove them with `Colonists.RemoveAllExcept` before you unpause, or they may walk filth into your rooms.
+
 `archo run FILE.cs` reads the class's attributes, builds the listed mods, then builds the scenarios project that holds the file. A build error is reported before the game starts. A runtime error is reported with the scenario file and line it came from.
 
 ### Attributes
@@ -126,7 +128,7 @@ Open a folder, not a single file, so C# Dev Kit loads the project. For this repo
 | --- | --- |
 | `World.Map`, `World.Center` | The current map and its centre cell. |
 | `World.Filth(area, defs)`, `World.Things(def, area)`, `World.Pawn(name)` | Queries the map. |
-| `Build.Room(center, width, height, floor, wall, stuff, door, roof)` | Clears the area and builds a finished walled room. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(defs)` and `Scatter(def, count, seed)`. |
+| `Build.Room(center, width, height, floor, wall, stuff, door, roof)` | Clears the area, builds a finished walled room and removes any filth inside it. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(defs)` and `Scatter(def, count, seed)`. |
 | `Spawn.Colonist(name, at, inside, work, traits, onlyWork, kind, incapableOf)` | Generates a colonist able to do `work` (WorkTypeDefs); with `onlyWork`, all other work is off. Traits are `"Def"` or `"Def:degree"`. `incapableOf` (WorkTags) swaps in a childhood that disables those tags. |
 | `Spawn.Thing(def, at, count, stuff)`, `Spawn.Filth(def, at)` | Places things. |
 | `pawn.Equip(def, stuff, quality)`, `pawn.SetWork(workType, priority)`, `pawn.CurrentJob()` | Pawn shortcuts. |
