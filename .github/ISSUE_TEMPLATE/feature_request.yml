@@ -1,0 +1,18 @@
+name: Feature request
+description: Suggest a command, builder or check for the harness.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: Describe what you'd like the harness to do.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it helps
+      description: Describe the scenario you want to write and what blocks you today.
+    validations:
+      required: true

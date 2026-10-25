@@ -11,6 +11,16 @@ The builds find RimWorld through `build/FindRimWorld.props`: `RIMWORLD_DIR`, els
 
 Run the sample scenarios in game with `./archo test scenarios`. Set `ARCHO_REBUILD=1` to rebuild `archo` and the mod after you change them.
 
+## Sending a change
+
+1. Fork the repo and create a branch from `main`.
+2. Write the failing test first, then the change, and keep every file to one top-level type.
+3. Open a pull request against `main` and fill in the template.
+4. The maintainer reviews it. Resolve every review conversation and push fixes to the same branch.
+5. The maintainer squash-merges the pull request, so its title becomes the commit subject on `main`.
+
+Nobody pushes to `main` directly.
+
 ## How it fits together
 
 | Part | Where | Does |

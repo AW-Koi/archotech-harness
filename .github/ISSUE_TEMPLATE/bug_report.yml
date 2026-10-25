@@ -1,0 +1,31 @@
+name: Bug report
+description: Report something in archo, the harness mod or the scenario API that doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe what you saw and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the command you ran and the smallest scenario that shows the problem.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Game version
+      description: Name the RimWorld version and the commit of the harness you used.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste the archo output and any errors from the scenario report.
+      render: text
