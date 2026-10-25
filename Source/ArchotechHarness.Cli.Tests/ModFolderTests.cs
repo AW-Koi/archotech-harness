@@ -51,4 +51,23 @@ public sealed class ModFolderTests : IDisposable
 
         Assert.Null(found);
     }
+
+    [Fact]
+    public void FindInstalled_ModNamedOnlyInADependency_ReturnsNull()
+    {
+        _temp.WriteFile("Mods/BucketMod/About/About.xml", """
+            <?xml version="1.0" encoding="utf-8"?>
+            <ModMetaData>
+              <name>Bucket Mod</name>
+              <packageId>TerraIncognita.BucketMod</packageId>
+              <modDependencies>
+                <li><packageId>TerraIncognita.MopMod</packageId></li>
+              </modDependencies>
+            </ModMetaData>
+            """);
+
+        var found = ModFolder.FindInstalled(_temp.Combine("Mods"), "terraincognita.mopmod");
+
+        Assert.Null(found);
+    }
 }

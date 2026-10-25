@@ -5,7 +5,7 @@ using Verse;
 
 namespace ArchotechHarness.Commands;
 
-/// <summary>Reports the program state, tick, speed and loaded map.</summary>
+/// <summary>Reports the program state, active mods, tick, speed and loaded map.</summary>
 public static class StatusCommand
 {
     public static CommandResult Run(JsonObject args)
@@ -18,6 +18,7 @@ public static class StatusCommand
             ["mapLoaded"] = playing,
             ["devMode"] = Prefs.DevMode,
             ["version"] = VersionControl.CurrentVersionStringWithRev,
+            ["activeMods"] = new JsonArray(ModsConfig.ActiveModsInLoadOrder.Select(m => (JsonNode)m.PackageId).ToArray()),
         };
         if (playing)
         {

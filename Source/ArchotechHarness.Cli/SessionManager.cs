@@ -29,6 +29,9 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
 
     public SessionState? Find(string id) => SessionState.Load(paths.SessionFile(id));
 
+    /// <summary>Finds [RequiresMod] package ids in the Mods folder, then in each Steam library's workshop folder.</summary>
+    public RequiredModResolver CreateRequiredModResolver() => new(paths.ModSearchFolders, paths.GameVersion);
+
     /// <summary>The folder in the Mods folder that holds a mod's package id, or null when none does.</summary>
     public string? InstalledDirectory(string modDirectory) => ModFolder.FindInstalled(paths.ModsDirectory, ModFolder.ReadPackageId(modDirectory));
 
@@ -97,7 +100,8 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
             Build(mod.Build!);
         }
 
-        var packageIds = options.Mods.Select(m => ModFolder.ReadPackageId(m.Directory)).ToList();
+        var modsUnderTest = options.Mods.Select(m => ModMetadata.Read(m.Directory, paths.GameVersion)).ToList();
+        var packageIds = ModLoadOrder.Sort(options.RequiredMods, modsUnderTest);
         SessionState session;
         Process game;
         using (AcquireLock())
@@ -110,6 +114,11 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
 
             EnsureInstalled(paths.HarnessModDirectory);
             foreach (var mod in options.Mods)
+            {
+                EnsureInstalled(mod.Directory);
+            }
+
+            foreach (var mod in options.RequiredMods.Where(m => !IsInModsFolder(m) && !SteamIsRunning()))
             {
                 EnsureInstalled(mod.Directory);
             }
@@ -145,6 +154,7 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
             StartWatchdog(id);
             progress.WriteLine($"Started RimWorld for session '{id}' (pid {game.Id}); waiting for the harness on port {session.Port}.");
             WaitForMap(session, game);
+            ThrowIfNotLoaded(session, options.RequiredMods);
             return session;
         }
         catch
@@ -361,6 +371,28 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
             throw new ScenarioException($"Timed out waiting for {what}.");
         }
     }
+
+    /// <summary>Throws when the game did not activate a required mod, such as a workshop mod Steam does not list.</summary>
+    private static void ThrowIfNotLoaded(SessionState session, IReadOnlyList<ModMetadata> requiredMods)
+    {
+        if (new HarnessClient(session.Port).Send("status")["result"]?["activeMods"] is not JsonArray active)
+        {
+            return;
+        }
+
+        var loaded = active.Select(m => m?.ToString().ToLowerInvariant()).ToHashSet();
+        var missing = requiredMods.Where(m => !loaded.Contains(m.PackageId)).Select(m => $"{m.Name} ({m.Directory})").ToList();
+        if (missing.Count > 0)
+        {
+            throw new ScenarioException(
+                $"The game did not load {string.Join(", ", missing)}. Subscribe to workshop mods in Steam, or install them in the Mods folder.");
+        }
+    }
+
+    private bool IsInModsFolder(ModMetadata mod) =>
+        string.Equals(Path.GetDirectoryName(Path.GetFullPath(mod.Directory)), Path.GetFullPath(paths.ModsDirectory), StringComparison.OrdinalIgnoreCase);
+
+    private static bool SteamIsRunning() => Process.GetProcessesByName("steam").Length > 0;
 
     /// <summary>Links a mod into the Mods folder unless some folder there already holds its package id.</summary>
     private void EnsureInstalled(string modDirectory)

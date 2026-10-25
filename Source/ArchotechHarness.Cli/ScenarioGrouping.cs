@@ -1,32 +1,38 @@
 namespace ArchotechHarness.Cli;
 
-/// <summary>Splits scenarios into boots by their mod and DLC set, keeping the order groups first appear in.</summary>
+/// <summary>Splits scenarios into boots by their mods under test, required mods and DLC set, keeping the order groups first appear in.</summary>
 public static class ScenarioGrouping
 {
-    public static IReadOnlyList<ScenarioGroup> Group(IEnumerable<ScenarioClass> scenarios) =>
+    public static IReadOnlyList<ScenarioGroup> Group(IEnumerable<ScenarioClass> scenarios, RequiredModResolver resolver) =>
         scenarios
+            .Select(scenario => new Profile(scenario, resolver.Resolve(scenario.RequiredMods)))
             .GroupBy(Key)
             .Select(group =>
             {
                 var first = group.First();
                 return new ScenarioGroup(
                     Name(first),
-                    first.Mods.OrderBy(m => m.Directory, StringComparer.OrdinalIgnoreCase).ToList(),
-                    first.Dlcs.Select(d => d.ToLowerInvariant()).Order().ToList(),
-                    first.Window,
-                    group.ToList());
+                    first.Scenario.Mods.OrderBy(m => m.Directory, StringComparer.OrdinalIgnoreCase).ToList(),
+                    first.Required.Mods,
+                    first.Dlcs,
+                    first.Scenario.Window,
+                    group.Select(p => p.Scenario).ToList(),
+                    first.Required.SkipReason);
             })
             .ToList();
 
-    private static string Key(ScenarioClass scenario) =>
-        string.Join('|', scenario.Mods.Select(m => m.Directory.ToLowerInvariant()).Order())
-        + "#" + string.Join('|', scenario.Dlcs.Select(d => d.ToLowerInvariant()).Order())
-        + "#" + scenario.Window;
+    private static string Key(Profile profile) =>
+        string.Join('|', profile.Scenario.Mods.Select(m => m.Directory.ToLowerInvariant()).Order())
+        + "#" + string.Join('|', profile.Required.Mods.Select(m => m.PackageId).Order())
+        + "#" + string.Join('|', profile.Dlcs)
+        + "#" + profile.Scenario.Window
+        + "#" + profile.Required.SkipReason;
 
-    private static string Name(ScenarioClass scenario)
+    private static string Name(Profile profile)
     {
-        var parts = scenario.Mods.Select(m => ModName(m.Directory)).Order(StringComparer.OrdinalIgnoreCase)
-            .Concat(scenario.Dlcs.Select(d => d.ToLowerInvariant()).Order())
+        var parts = profile.Scenario.Mods.Select(m => ModName(m.Directory)).Order(StringComparer.OrdinalIgnoreCase)
+            .Concat(profile.Scenario.RequiredMods.Select(id => id.ToLowerInvariant()).Distinct().Order())
+            .Concat(profile.Dlcs)
             .ToList();
         return parts.Count == 0 ? "core" : string.Join('+', parts);
     }
@@ -35,5 +41,11 @@ public static class ScenarioGrouping
     {
         var name = Path.GetFileName(directory);
         return name.Equals("mod", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(Path.GetDirectoryName(directory)!) : name;
+    }
+
+    private sealed record Profile(ScenarioClass Scenario, RequiredModSet Required)
+    {
+        public IReadOnlyList<string> Dlcs { get; } =
+            Scenario.Dlcs.Concat(Required.Dlcs).Select(d => d.ToLowerInvariant()).Distinct().Order().ToList();
     }
 }

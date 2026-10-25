@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ArchotechHarness.Cli;
 
-/// <summary>Reads a scenario's class name and its [Mod], [Dlc] and [Window] attributes from source, before anything builds.</summary>
+/// <summary>Reads a scenario's class name and its [Mod], [RequiresMod], [Dlc] and [Window] attributes from source, before anything builds.</summary>
 /// <remarks>Attribute arguments must be literals. Paths are relative to the scenario file; the project's mods come first.</remarks>
 public static class ScenarioClassReader
 {
@@ -38,6 +38,7 @@ public static class ScenarioClassReader
         var directory = Path.GetDirectoryName(fullPath)!;
         var mods = new List<ScenarioMod>(projectMods);
         var dlcs = new List<string>();
+        var requiredMods = new List<string>();
         var window = new WindowSize(1600, 900);
         foreach (var attribute in scenario.AttributeLists.SelectMany(l => l.Attributes))
         {
@@ -46,6 +47,9 @@ public static class ScenarioClassReader
             {
                 case "Mod":
                     mods.Add(ReadMod(arguments, directory, fullPath));
+                    break;
+                case "RequiresMod":
+                    requiredMods.AddRange(arguments.Select(a => Literal<string>(a, fullPath)));
                     break;
                 case "Dlc":
                     dlcs.AddRange(arguments.Select(a => Literal<string>(a, fullPath)));
@@ -57,7 +61,8 @@ public static class ScenarioClassReader
         }
 
         var distinctMods = mods.DistinctBy(m => m.Directory, StringComparer.OrdinalIgnoreCase).ToList();
-        return new ScenarioClass(FullName(scenario), fullPath, project, distinctMods, dlcs, window);
+        var distinctRequiredMods = requiredMods.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return new ScenarioClass(FullName(scenario), fullPath, project, distinctMods, dlcs, window, distinctRequiredMods);
     }
 
     private static ScenarioMod ReadMod(List<AttributeArgumentSyntax> arguments, string directory, string file)

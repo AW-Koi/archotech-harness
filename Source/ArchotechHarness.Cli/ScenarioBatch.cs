@@ -7,7 +7,7 @@ namespace ArchotechHarness.Cli;
 
 /// <summary>Runs many scenarios across a pool of games, starting each scenario after a game's first in a fresh colony.</summary>
 /// <remarks>Each worker keeps its game while the next scenario needs the same mod and DLC set. With several workers the games run hidden.
-/// Errors that mods under test log while a group's game loads fail that group's scenarios.</remarks>
+/// Errors that mods under test log while a group's game loads fail that group's scenarios. Groups missing a required mod are skipped.</remarks>
 public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, TextWriter progress)
 {
     private const int LoggedLoadErrors = 5;
@@ -39,10 +39,13 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
             project => project,
             project => ScenarioProjectBuilder.Build(project, Path.Combine(options.OutputDirectory, "bin", Path.GetFileNameWithoutExtension(project))));
 
-        var groups = ScenarioGrouping.Group(scenarios);
-        var queue = new WorkQueue(groups);
-        var workers = WorkerCount.Choose(options.Workers, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, Environment.ProcessorCount, scenarios.Count);
-        var outcomes = new List<ScenarioOutcome>();
+        var groups = ScenarioGrouping.Group(scenarios, sessions.CreateRequiredModResolver());
+        var outcomes = groups.Where(g => g.SkipReason != null).SelectMany(g => Skip(g, options.OutputDirectory)).ToList();
+        var runnable = groups.Where(g => g.SkipReason == null).ToList();
+        var queue = new WorkQueue(runnable);
+        var workers = runnable.Count == 0
+            ? 0
+            : WorkerCount.Choose(options.Workers, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, Environment.ProcessorCount, runnable.Sum(g => g.Scenarios.Count));
         var timer = Stopwatch.StartNew();
         var threads = Enumerable.Range(1, workers).Select(index => new Thread(() =>
         {
@@ -64,7 +67,8 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
         Emit(new JsonObject
         {
             ["scenarios"] = ordered.Count,
-            ["failed"] = ordered.Count(o => !o.Passed),
+            ["failed"] = ordered.Count(o => o.Failed),
+            ["skipped"] = ordered.Count(o => o.Skipped),
             ["workers"] = workers,
             ["loadErrors"] = loads.Sum(l => l.Errors.Count),
             ["loadErrorsFromModsUnderTest"] = loads.Sum(l => l.FromModsUnderTest.Count),
@@ -74,6 +78,18 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
             ["json"] = Path.Combine(options.OutputDirectory, "run.json"),
         });
         return ordered;
+    }
+
+    /// <summary>Records a skipped group's scenarios as skipped, without booting a game.</summary>
+    private IEnumerable<ScenarioOutcome> Skip(ScenarioGroup group, string outputRoot)
+    {
+        foreach (var scenario in group.Scenarios)
+        {
+            var outcome = ScenarioOutcome.Skip(scenario, group.Name, group.SkipReason!, OutputDirectoryOf(outputRoot, scenario));
+            Progress($"Skipped {scenario.TypeName}: {group.SkipReason}.");
+            EmitOutcome(outcome, worker: null);
+            yield return outcome;
+        }
     }
 
     /// <summary>Reads the errors a group's freshly booted game logged, once per group, and reports them.</summary>
@@ -141,6 +157,22 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
             }
         }
     }
+
+    private void EmitOutcome(ScenarioOutcome outcome, string? worker) => Emit(new JsonObject
+    {
+        ["scenario"] = outcome.Scenario.TypeName,
+        ["worker"] = worker,
+        ["passed"] = outcome.Passed,
+        ["skipped"] = outcome.Skipped,
+        ["attempts"] = outcome.Attempts,
+        ["setupSeconds"] = Math.Round(outcome.SetupSeconds, 2),
+        ["runSeconds"] = Math.Round(outcome.RunSeconds, 2),
+        ["error"] = outcome.Error,
+        ["skipReason"] = outcome.SkipReason,
+    });
+
+    private static string OutputDirectoryOf(string outputRoot, ScenarioClass scenario) =>
+        Path.Combine(outputRoot, scenario.TypeName[(scenario.TypeName.LastIndexOf('.') + 1)..]);
 
     private void Emit(JsonNode line)
     {
@@ -226,16 +258,7 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
                 {
                     var outcome = RunWithRetries(next.Group, next.Scenario);
                     outcomes.Add(outcome);
-                    batch.Emit(new JsonObject
-                    {
-                        ["scenario"] = outcome.Scenario.TypeName,
-                        ["worker"] = id,
-                        ["passed"] = outcome.Passed,
-                        ["attempts"] = outcome.Attempts,
-                        ["setupSeconds"] = Math.Round(outcome.SetupSeconds, 2),
-                        ["runSeconds"] = Math.Round(outcome.RunSeconds, 2),
-                        ["error"] = outcome.Error,
-                    });
+                    batch.EmitOutcome(outcome, id);
                 }
             }
             finally
@@ -248,8 +271,7 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
 
         private ScenarioOutcome RunWithRetries(ScenarioGroup group, ScenarioClass scenario)
         {
-            var simpleName = scenario.TypeName[(scenario.TypeName.LastIndexOf('.') + 1)..];
-            var outputDirectory = Path.Combine(options.OutputDirectory, simpleName);
+            var outputDirectory = OutputDirectoryOf(options.OutputDirectory, scenario);
             ScenarioOutcome? outcome = null;
             for (var attempt = 1; attempt <= options.Retries + 1; attempt++)
             {
@@ -309,7 +331,7 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
             batch.Progress($"Worker {id}: booting for {group.Name}.");
             _group = group;
             _session = batch.Sessions.Start(
-                new LaunchOptions(group.Dlcs, group.Mods.Select(m => m with { Build = null }).ToList(), group.Window, hidden ? 0 : options.Port, hidden),
+                new LaunchOptions(group.Dlcs, group.Mods.Select(m => m with { Build = null }).ToList(), group.RequiredMods, group.Window, hidden ? 0 : options.Port, hidden),
                 id, checkBusy: false);
             _freshGame = true;
             batch.RecordLoad(group, _session);

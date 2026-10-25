@@ -77,6 +77,21 @@ public sealed class ScenarioClassReaderTests : IDisposable
     }
 
     [Fact]
+    public void Read_RequiresModAttributes_ListTheirPackageIds()
+    {
+        _temp.WriteFile("MopMod/harness/Scenarios.csproj", "<Project />");
+        var file = _temp.WriteFile("MopMod/harness/WithEducation.cs", """
+            [RequiresMod("ferny.ProgressionEducation")]
+            [RequiresModAttribute("VanillaExpanded.VArmourE")]
+            public class WithEducation : HarnessScenario { public override Task Run() => Task.CompletedTask; }
+            """);
+
+        var scenario = ScenarioClassReader.Read(file);
+
+        Assert.Equal(["ferny.ProgressionEducation", "VanillaExpanded.VArmourE"], scenario.RequiredMods);
+    }
+
+    [Fact]
     public void Read_ScenarioWithoutAttributes_UsesTheDefaultProfile()
     {
         _temp.WriteFile("MopMod/harness/Scenarios.csproj", "<Project />");
@@ -86,6 +101,7 @@ public sealed class ScenarioClassReaderTests : IDisposable
 
         Assert.Equal("MopMod.Scenarios.Smoke", scenario.TypeName);
         Assert.Empty(scenario.Mods);
+        Assert.Empty(scenario.RequiredMods);
         Assert.Equal(new WindowSize(1600, 900), scenario.Window);
     }
 

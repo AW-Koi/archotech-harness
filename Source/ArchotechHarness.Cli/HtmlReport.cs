@@ -27,9 +27,10 @@ public static class HtmlReport
     {
         var reportDirectory = Path.GetDirectoryName(Path.GetFullPath(path))!;
         var html = new StringBuilder();
-        var failed = outcomes.Count(o => !o.Passed);
+        var failed = outcomes.Count(o => o.Failed);
+        var skipped = outcomes.Count(o => o.Skipped);
         html.Append($"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Archotech Harness report</title><style>{Style}</style></head><body>");
-        html.Append($"<h1>Archotech Harness report</h1><p class=\"summary\">{outcomes.Count} scenarios, <span class=\"{(failed == 0 ? "ok" : "bad")}\">{failed} failed</span>, {Seconds(outcomes.Sum(o => o.SetupSeconds + o.RunSeconds))} in game.</p>");
+        html.Append($"<h1>Archotech Harness report</h1><p class=\"summary\">{outcomes.Count} scenarios, <span class=\"{(failed == 0 ? "ok" : "bad")}\">{failed} failed</span>, {(skipped == 0 ? "" : $"<span class=\"warn\">{skipped} skipped</span>, ")}{Seconds(outcomes.Sum(o => o.SetupSeconds + o.RunSeconds))} in game.</p>");
         AppendGameLoad(html, loads ?? []);
         foreach (var group in outcomes.GroupBy(o => o.Group))
         {
@@ -68,13 +69,18 @@ public static class HtmlReport
     private static void AppendOutcome(StringBuilder html, ScenarioOutcome outcome, string reportDirectory)
     {
         var report = outcome.Report;
-        html.Append(outcome.Passed ? "<details>" : "<details open>");
-        html.Append($"<summary><strong class=\"{(outcome.Passed ? "ok" : "bad")}\">{(outcome.Passed ? "Passed" : "Failed")}</strong>");
+        var (label, style) = outcome.Skipped ? ("Skipped", "warn") : outcome.Passed ? ("Passed", "ok") : ("Failed", "bad");
+        html.Append(outcome.Failed ? "<details open>" : "<details>");
+        html.Append($"<summary><strong class=\"{style}\">{label}</strong>");
         html.Append($"<span>{Encode(outcome.Scenario.TypeName)}</span>");
         html.Append($"<span class=\"muted\">run {Seconds(outcome.RunSeconds)}, setup {Seconds(outcome.SetupSeconds)}");
         html.Append(outcome.Attempts > 1 ? $", {outcome.Attempts} attempts" : "");
         html.Append("</span></summary>");
         html.Append($"<p class=\"muted\"><code>{Encode(outcome.Scenario.SourceFile)}</code></p>");
+        if (outcome.SkipReason != null)
+        {
+            html.Append($"<p class=\"warn\">{Encode(outcome.SkipReason)}</p>");
+        }
 
         if (outcome.Error != null)
         {

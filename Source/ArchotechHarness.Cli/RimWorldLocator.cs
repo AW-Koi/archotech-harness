@@ -1,5 +1,3 @@
-using Microsoft.Win32;
-
 namespace ArchotechHarness.Cli;
 
 /// <summary>Finds the RimWorld install: RIMWORLD_DIR if set, otherwise the Steam library that holds app 294100.</summary>
@@ -24,18 +22,12 @@ public static class RimWorldLocator
 
     private static string? FromSteam()
     {
-        if (!OperatingSystem.IsWindows() || Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) is not string steam)
+        if (SteamLibraries.Installed().FirstOrDefault(l => l.AppIds.Contains(SteamAppId)) is not { } library)
         {
             return null;
         }
 
-        var libraries = Path.Combine(steam, "steamapps", "libraryfolders.vdf");
-        if (!File.Exists(libraries) || SteamLibraries.LibraryWithApp(File.ReadAllText(libraries), SteamAppId) is not { } library)
-        {
-            return null;
-        }
-
-        var game = Path.Combine(library, "steamapps", "common", "RimWorld");
+        var game = Path.Combine(library.Path, "steamapps", "common", "RimWorld");
         return HasGame(game) ? Path.GetFullPath(game) : null;
     }
 

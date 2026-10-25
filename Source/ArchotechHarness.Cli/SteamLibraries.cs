@@ -1,10 +1,23 @@
 using System.Text;
+using Microsoft.Win32;
 
 namespace ArchotechHarness.Cli;
 
 /// <summary>Reads Steam's libraryfolders.vdf: which library folders exist and which apps each holds.</summary>
 public static class SteamLibraries
 {
+    /// <summary>The libraries of the Steam install in the registry; none when Steam is not installed.</summary>
+    public static IReadOnlyList<SteamLibrary> Installed()
+    {
+        if (!OperatingSystem.IsWindows() || Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) is not string steam)
+        {
+            return [];
+        }
+
+        var libraries = Path.Combine(steam, "steamapps", "libraryfolders.vdf");
+        return File.Exists(libraries) ? Parse(File.ReadAllText(libraries)) : [];
+    }
+
     public static IReadOnlyList<SteamLibrary> Parse(string vdf)
     {
         var tokens = Tokenize(vdf);

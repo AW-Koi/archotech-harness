@@ -11,7 +11,8 @@ public static class RunReport
     public static JsonObject ToJson(IReadOnlyList<ScenarioOutcome> outcomes, IReadOnlyList<GameLoad>? loads = null) => new()
     {
         ["scenarios"] = outcomes.Count,
-        ["failed"] = outcomes.Count(o => !o.Passed),
+        ["failed"] = outcomes.Count(o => o.Failed),
+        ["skipped"] = outcomes.Count(o => o.Skipped),
         ["seconds"] = Math.Round(outcomes.Sum(o => o.SetupSeconds + o.RunSeconds), 2),
         ["runs"] = new JsonArray(outcomes.Select(o => (JsonNode)new JsonObject
         {
@@ -19,6 +20,8 @@ public static class RunReport
             ["file"] = o.Scenario.SourceFile,
             ["group"] = o.Group,
             ["passed"] = o.Passed,
+            ["skipped"] = o.Skipped,
+            ["skipReason"] = o.SkipReason,
             ["attempts"] = o.Attempts,
             ["setupSeconds"] = Math.Round(o.SetupSeconds, 2),
             ["runSeconds"] = Math.Round(o.RunSeconds, 2),

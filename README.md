@@ -114,7 +114,32 @@ Attributes on a class add to the project's mods for that scenario. Their paths a
 | --- | --- |
 | `[Mod("../mod")]` | Loads the mod in that folder. Repeat it for several mods. |
 | `[Mod("../mod", Build = "dotnet build", BuildIn = "..")]` | Also builds the mod before the run. |
+| `[RequiresMod("ferny.ProgressionEducation")]` | Loads an installed mod by package id, with its dependencies. Repeat it for several mods. See [Compatibility scenarios](#compatibility-scenarios). |
 | `[Dlc("biotech")]` | Activates DLCs: `royalty`, `ideology`, `biotech`, `anomaly`, `odyssey`. |
+
+### Compatibility scenarios
+
+A compatibility scenario runs your mod alongside another mod you have installed. Name the other mod by its package id, so the scenario works on any machine:
+
+```csharp
+[RequiresMod("ferny.ProgressionEducation")]
+public sealed class EducationGatesTheSprayer : HarnessScenario
+{
+    public override async Task Run()
+    {
+        var sprayer = DefDatabase<ThingDef>.GetNamed("Janitor_HazmatSprayer");
+        Check(sprayer.modExtensions.Any(e => e.GetType().Name == "ItemProficiencyRequirement"));
+    }
+}
+```
+
+- **Search:** `archo` matches the top-level `<packageId>` in each `About/About.xml`, ignoring case. It looks in the game's `Mods` folder first, then in `steamapps/workshop/content/294100` of every Steam library.
+- **Dependencies:** it adds the mods in `<modDependencies>`, and in `<modDependenciesByVersion>` for the running game version, then their dependencies in turn. It leaves Harmony and Core to the harness, and activates a DLC dependency as `[Dlc]` does.
+- **Load order:** Harmony, Core, DLCs and the harness load first. Each mod then loads after its dependencies and the mods in its `loadAfter`, and before the mods in its `loadBefore`. Otherwise required mods load before the mods under test.
+- **Skipping:** when a required mod or one of its dependencies isn't installed, the scenario is skipped with the reason, such as `ferny.ProgressionEducation is not installed`. A skipped scenario doesn't fail `archo test`, and `archo run` reports it and exits with 0.
+- **Workshop mods:** the game loads them through Steam. When Steam isn't running, `archo` links them into the `Mods` folder for the session. If the game still doesn't load a required mod, the boot fails.
+- **Grouping:** scenarios with different required mods boot separate games.
+- **Load errors:** errors from required mods show as warnings, as for the base game. Only the mods under test fail a group.
 
 ## Using it from your own mod
 
@@ -175,7 +200,7 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 | `archo restore` | Restores your files after an interrupted run. |
 | `archo clean` | Deletes old run folders now. `--keep N` and `--max-mb N` override the limits below; `--dry-run` lists what it would delete. |
 
-Add `--wait` to `run` or `test` to wait for another game to close instead of stopping with an error. `archo test` exits with code 0 only when every scenario passed.
+Add `--wait` to `run` or `test` to wait for another game to close instead of stopping with an error. `archo test` exits with code 0 only when no scenario failed. Skipped scenarios count separately in the console, `run.json` and `report.html`.
 
 Before each `run` or `test`, `archo` deletes the oldest folders in `.harness/runs/` and `.harness/test-runs/`. It keeps the 20 newest in each, up to 1024 MB per folder, and always the newest one. Set `ARCHO_KEEP_RUNS` (a number, or `all`) and `ARCHO_KEEP_MB` (`0` for no cap) to change that. It skips this while a game from this checkout is running, and never touches folders you write elsewhere with `--out`.
 

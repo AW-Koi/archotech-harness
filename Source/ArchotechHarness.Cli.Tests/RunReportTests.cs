@@ -16,6 +16,8 @@ public sealed class RunReportTests : IDisposable
          "notes":{},"shots":[],"gameErrors":["Exception ticking Janitor"]}
         """;
 
+    private const string EducationMissing = "ferny.ProgressionEducation is not installed";
+
     private static readonly WindowSize Window = new(1600, 900);
 
     private static readonly GameLoad MopModLoad = new("MopMod",
@@ -139,12 +141,45 @@ public sealed class RunReportTests : IDisposable
         Assert.Contains("<li><span class=\"muted\">base game or another mod</span><pre class=\"warn\">Getting apparel graphic with undefined body type.</pre></li>", html);
     }
 
+    [Fact]
+    public void Json_SkippedScenario_CountsItApartFromFailures()
+    {
+        var path = _temp.Combine("run.json");
+
+        RunReport.WriteJson(path, [Outcome("SweepsTheHall", PassedReport), Skipped("MopsWithEducation", EducationMissing)]);
+
+        var run = JsonNode.Parse(File.ReadAllText(path))!;
+        Assert.Equal(0, run["failed"]!.GetValue<int>());
+        Assert.Equal(1, run["skipped"]!.GetValue<int>());
+        var skipped = run["runs"]![1]!;
+        Assert.True(skipped["skipped"]!.GetValue<bool>());
+        Assert.Equal(EducationMissing, skipped["skipReason"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Html_SkippedScenario_ShowsItsReasonAndCount()
+    {
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("SweepsTheHall", PassedReport), Skipped("MopsWithEducation", EducationMissing)]);
+
+        var html = File.ReadAllText(path);
+        Assert.Contains("<span class=\"warn\">1 skipped</span>", html);
+        Assert.Contains("<strong class=\"warn\">Skipped</strong>", html);
+        Assert.Contains("<p class=\"warn\">ferny.ProgressionEducation is not installed</p>", html);
+    }
+
+    private static ScenarioClass Scenario(string name) =>
+        new($"MopMod.Scenarios.{name}", Path.Combine("Mods", "harness", "Mops.cs"), Path.Combine("Mods", "harness", "Scenarios.csproj"),
+            [new ScenarioMod(Path.Combine("Mods", "MopMod", "mod"), null)], [], Window, []);
+
     private ScenarioOutcome Outcome(string name, string report)
     {
         var json = JsonNode.Parse(report)!.AsObject();
-        var scenario = new ScenarioClass($"MopMod.Scenarios.{name}", Path.Combine("Mods", "harness", "Mops.cs"),
-            Path.Combine("Mods", "harness", "Scenarios.csproj"), [new ScenarioMod(Path.Combine("Mods", "MopMod", "mod"), null)], [], Window);
-        return new ScenarioOutcome(scenario, "MopMod", json["passed"]!.GetValue<bool>(), 1, 1.25,
+        return new ScenarioOutcome(Scenario(name), "MopMod", json["passed"]!.GetValue<bool>(), 1, 1.25,
             json["seconds"]!.GetValue<double>(), json["error"]?.GetValue<string>(), json, _temp.Combine(name));
     }
+
+    private ScenarioOutcome Skipped(string name, string reason) =>
+        ScenarioOutcome.Skip(Scenario(name), "MopMod+ferny.progressioneducation", reason, _temp.Combine(name));
 }

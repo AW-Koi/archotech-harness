@@ -59,7 +59,7 @@ public static class Program
     private static int Launch(SessionManager sessions, CommandLineOptions options)
     {
         var mods = options.All("--mod").Select(dir => new ScenarioMod(Path.GetFullPath(dir), null)).ToList();
-        var session = sessions.Start(new LaunchOptions(options.All("--dlc"), mods, options.Window(), options.Port()));
+        var session = sessions.Start(new LaunchOptions(options.All("--dlc"), mods, [], options.Window(), options.Port()));
         return Print(new JsonObject { ["pid"] = session.GameProcessId, ["port"] = session.Port, ["mapLoaded"] = true });
     }
 
@@ -71,9 +71,9 @@ public static class Program
             : Path.Combine(paths.RunsDirectory, $"{Path.GetFileNameWithoutExtension(file)}-{DateTime.Now:yyyyMMdd-HHmmss}");
         WaitIfAsked(sessions, options);
         PruneOldRuns(paths, sessions);
-        var passed = new ScenarioClassRunner(sessions, Console.Out)
+        var failed = !new ScenarioClassRunner(sessions, Console.Out, Console.Error)
             .Run(file, runDirectory, options.Flag("--keep-open"), options.Flag("--attach"), options.Port(), options.VideoFps());
-        return passed ? 0 : 1;
+        return failed ? 1 : 0;
     }
 
     private static int Test(HarnessPaths paths, SessionManager sessions, CommandLineOptions options)
@@ -87,7 +87,7 @@ public static class Program
         var outcomes = new ScenarioBatch(sessions, Console.Out, Console.Error).Run(new BatchOptions(
             scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port(), options.Value("--workers"), options.VideoFps(),
             options.Flag("--allow-load-errors")));
-        return outcomes.All(o => o.Passed) ? 0 : 1;
+        return outcomes.Any(o => o.Failed) ? 1 : 0;
     }
 
     private static void WaitIfAsked(SessionManager sessions, CommandLineOptions options)

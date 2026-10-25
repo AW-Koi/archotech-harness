@@ -28,6 +28,14 @@ public sealed class HarnessPaths
 
     public string WorkshopDirectory => Path.GetFullPath(Path.Combine(GameDirectory, "..", "..", "workshop", "content", RimWorldLocator.SteamAppId));
 
+    /// <summary>Where [RequiresMod] looks: the Mods folder, then the RimWorld workshop folder of each Steam library.</summary>
+    public IReadOnlyList<string> ModSearchFolders =>
+        new[] { ModsDirectory, WorkshopDirectory }
+            .Concat(SteamLibraries.Installed().Select(l => Path.Combine(l.Path, "steamapps", "workshop", "content", RimWorldLocator.SteamAppId)))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
     public string StateDirectory => Path.Combine(Home, ".harness");
 
     /// <summary>State every archo checkout on this machine shares: live sessions, the player-file backup, junctions and the lock.</summary>
