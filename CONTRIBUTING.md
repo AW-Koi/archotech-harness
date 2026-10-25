@@ -9,7 +9,7 @@ dotnet test ArchotechHarness.sln
 
 The builds find RimWorld through `build/FindRimWorld.props`: `RIMWORLD_DIR`, else the Steam library that lists app 294100. Never commit game files; reference game assemblies by `HintPath` only.
 
-Run the sample scenarios in game with `./archo test scenarios`. Set `ARCHO_REBUILD=1` to rebuild `archo` and the mod after you change them.
+Run the sample scenarios in game with `./archo test scenarios`. `archo` and `archo.ps1` rebuild the CLI or the mod when any file in its sources (`Source/`, `Directory.Build.props`, and `build/FindRimWorld.props` for the mod) is newer than its stamp in `.bin/`. Set `ARCHO_REBUILD=1` to force a rebuild.
 
 ## Sending a change
 

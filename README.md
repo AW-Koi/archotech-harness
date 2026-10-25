@@ -20,7 +20,7 @@ cd archotech-harness
 
 In PowerShell, use `.\archo.ps1` instead of `./archo`.
 
-The first run builds `archo` and the harness mod. The game opens, the scenario runs and the game closes. `archo` prints a JSON report and saves it, with the screenshots, in `.harness/runs/<scenario>-<time>/`.
+The first run builds `archo` and the harness mod, and later runs rebuild them when a file under `Source/` is newer than the last build, such as after a `git pull`. Set `ARCHO_REBUILD=1` to force a rebuild. The game opens, the scenario runs and the game closes. `archo` prints a JSON report and saves it, with the screenshots, in `.harness/runs/<scenario>-<time>/`.
 
 Run every scenario in a folder with `./archo test scenarios`. That writes `report.html` to `.harness/test-runs/<time>/`, with each scenario's checks, notes, screenshots and a timeline of its steps.
 
