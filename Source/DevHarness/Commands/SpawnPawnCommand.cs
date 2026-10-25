@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using RimWorld;
@@ -54,6 +56,11 @@ public static class SpawnPawnCommand
             }
         }
 
+        foreach (var tagName in Arguments.Strings(args, "incapableOf"))
+        {
+            MakeIncapableOf(pawn, (WorkTags)Enum.Parse(typeof(WorkTags), tagName), workTypes);
+        }
+
         GenSpawn.Spawn(pawn, cell, map);
         if (work.Count > 0)
         {
@@ -65,8 +72,25 @@ public static class SpawnPawnCommand
             ["id"] = pawn.ThingID,
             ["name"] = pawn.LabelShort,
             ["cell"] = Arguments.Json(pawn.Position),
+            ["incapableOf"] = pawn.CombinedDisabledWorkTags.ToString(),
             ["traits"] = new JsonArray(pawn.story.traits.allTraits.Select(t => (JsonNode)t.def.defName).ToArray()),
         });
+    }
+
+    /// <summary>Swaps in a vanilla childhood that disables the tag without disabling the requested work.</summary>
+    private static void MakeIncapableOf(Pawn pawn, WorkTags tag, List<WorkTypeDef> workTypes)
+    {
+        var childhood = DefDatabase<BackstoryDef>.AllDefs.FirstOrDefault(b =>
+            b.slot == BackstorySlot.Childhood
+            && (b.workDisables & tag) != 0
+            && workTypes.All(w => (b.workDisables & w.workTags) == 0));
+        if (childhood == null)
+        {
+            throw new HarnessException($"No childhood backstory disables {tag} while allowing the requested work.");
+        }
+
+        pawn.story.Childhood = childhood;
+        pawn.Notify_DisabledWorkTypesChanged();
     }
 
     /// <summary>Adds a trait as "defName" or "defName:degree", dropping traits it conflicts with.</summary>

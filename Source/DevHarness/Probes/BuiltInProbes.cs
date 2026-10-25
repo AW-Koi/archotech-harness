@@ -7,7 +7,7 @@ using Verse;
 
 namespace DevHarness.Probes;
 
-/// <summary>Probes that ship with the harness: filthCount, thingCount, pawn, mapLoaded and tick.</summary>
+/// <summary>Probes that ship with the harness: filthCount, thingCount, pawn, thoughts, floatMenu, mapLoaded and tick.</summary>
 public static class BuiltInProbes
 {
     public static IEnumerable<KeyValuePair<string, Func<JsonObject, JsonNode>>> All => new Dictionary<string, Func<JsonObject, JsonNode>>
@@ -15,6 +15,8 @@ public static class BuiltInProbes
         ["filthCount"] = FilthCount,
         ["thingCount"] = ThingCount,
         ["pawn"] = PawnState,
+        ["thoughts"] = Thoughts,
+        ["floatMenu"] = FloatMenu,
         ["mapLoaded"] = _ => Current.ProgramState == ProgramState.Playing && Find.CurrentMap != null,
         ["tick"] = _ => Find.TickManager?.TicksGame ?? 0,
     };
@@ -62,6 +64,54 @@ public static class BuiltInProbes
             ["drafted"] = pawn.Drafted,
             ["downed"] = pawn.Downed,
             ["work"] = SetWorkCommand.WorkPriorities(pawn),
+        };
+    }
+
+    /// <summary>The pawn's memory thoughts, optionally only "def": def, mood offset and the other pawn for social memories.</summary>
+    private static JsonNode Thoughts(JsonObject args)
+    {
+        var pawn = Arguments.Pawn(args);
+        var memories = pawn.needs?.mood?.thoughts?.memories?.Memories ?? new List<RimWorld.Thought_Memory>();
+        var defName = Arguments.String(args, "def");
+        if (defName != null)
+        {
+            memories = memories.Where(m => m.def.defName == defName).ToList();
+        }
+
+        return new JsonObject
+        {
+            ["has"] = memories.Count > 0,
+            ["memories"] = new JsonArray(memories.Select(m => (JsonNode)new JsonObject
+            {
+                ["def"] = m.def.defName,
+                ["mood"] = m.MoodOffset(),
+                ["otherPawn"] = m.otherPawn?.LabelShort,
+            }).ToArray()),
+        };
+    }
+
+    /// <summary>The right-click options the pawn would see at "cell", optionally only labels containing "labelContains".</summary>
+    private static JsonNode FloatMenu(JsonObject args)
+    {
+        var map = Arguments.CurrentMap();
+        var pawn = Arguments.Pawn(args);
+        var cell = Arguments.Cell(args, "cell", map);
+        var options = RimWorld.FloatMenuMakerMap.GetOptions(new List<Pawn> { pawn }, cell.ToVector3Shifted(), out _);
+        var labelContains = Arguments.String(args, "labelContains");
+        if (labelContains != null)
+        {
+            options = options.Where(o => o.Label.IndexOf(labelContains, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+        }
+
+        return new JsonObject
+        {
+            ["enabledCount"] = options.Count(o => !o.Disabled),
+            ["disabledCount"] = options.Count(o => o.Disabled),
+            ["options"] = new JsonArray(options.Select(o => (JsonNode)new JsonObject
+            {
+                ["label"] = o.Label,
+                ["disabled"] = o.Disabled,
+            }).ToArray()),
         };
     }
 

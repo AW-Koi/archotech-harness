@@ -134,7 +134,7 @@ Send them with `rwh send`, or use them as scenario steps. Cells are `[x, z]` or 
 | --- | --- | --- |
 | `ping` | none | `pid`. Answers even while the game loads. |
 | `status` | none | Program state, `mapLoaded`, `tick`, `speed`, `paused`, map size and colonists. |
-| `spawnPawn` | `cell`, `name`, `kind`, `traits` (`"Def"` or `"Def:degree"`), `skills` (`{"Cooking": 8}`), `work` (`{"Cleaning": 1}`), `onlyWork` | The colonist's `id`, `name`, `cell` and `traits`. It retries until the colonist can do every listed work type. |
+| `spawnPawn` | `cell`, `name`, `kind`, `traits` (`"Def"` or `"Def:degree"`), `skills` (`{"Cooking": 8}`), `work` (`{"Cleaning": 1}`), `onlyWork`, `incapableOf` (work tags such as `["Violent"]`) | The colonist's `id`, `name`, `cell`, `incapableOf` and `traits`. It retries until the colonist can do every listed work type. `incapableOf` swaps in a vanilla childhood that disables those tags. |
 | `spawnThing` | `def`, `cell`, `stuff`, `count`, `quality` | The thing's `id`, `cell` and `count`. |
 | `equip` | `pawn`, `def`, `stuff`, `quality` | `slot`: a weapon is equipped, apparel is worn, anything else goes to the inventory. |
 | `buildRoom` | `rect` (walls included), `wall`, `stuff`, `floor`, `door`, `doorDef`, `roof`, `home` | `rect`, `interior` and `center`. It clears the area first and adds the room to the home area. |
@@ -158,6 +158,8 @@ Send them with `rwh send`, or use them as scenario steps. Cells are `[x, z]` or 
 - `filthCount`: `rect` and `defs` are optional. Returns `count` and `byDef`.
 - `thingCount`: needs `def`, and `rect` is optional. Returns `count` and `stackTotal`.
 - `pawn`: needs `pawn`. Returns cell, current job, job report, weapon, apparel, drafted and downed state, and work priorities.
+- `thoughts`: needs `pawn`, and `def` is optional. Returns `has` and `memories`, each with `def`, `mood` and `otherPawn`.
+- `floatMenu`: needs `pawn` and `cell`, and `labelContains` is optional. Returns `enabledCount`, `disabledCount` and the right-click `options` with their labels.
 - `mapLoaded` and `tick`.
 
 ### Adding probes from your mod
