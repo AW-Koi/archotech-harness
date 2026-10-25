@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace ArchotechHarness.Cli;
 
 /// <summary>Reads a scenario's class name and its [Mod], [Dlc] and [Window] attributes from source, before anything builds.</summary>
-/// <remarks>Attribute arguments must be literals. Paths are relative to the scenario file.</remarks>
+/// <remarks>Attribute arguments must be literals. Paths are relative to the scenario file; the project's mods come first.</remarks>
 public static class ScenarioClassReader
 {
     public const string BaseClassName = "HarnessScenario";
@@ -28,13 +28,15 @@ public static class ScenarioClassReader
         }
 
         var project = FindProject(Path.GetDirectoryName(fullPath)!, fullPath);
-        return classes.Select(c => ReadClass(c, fullPath, project)).ToList();
+        var projectMods = ProjectModReader.Read(project);
+        return classes.Select(c => ReadClass(c, fullPath, project, projectMods)).ToList();
     }
 
-    private static ScenarioClass ReadClass(ClassDeclarationSyntax scenario, string fullPath, string project)
+    private static ScenarioClass ReadClass(
+        ClassDeclarationSyntax scenario, string fullPath, string project, IReadOnlyList<ScenarioMod> projectMods)
     {
         var directory = Path.GetDirectoryName(fullPath)!;
-        var mods = new List<ScenarioMod>();
+        var mods = new List<ScenarioMod>(projectMods);
         var dlcs = new List<string>();
         var window = new WindowSize(1600, 900);
         foreach (var attribute in scenario.AttributeLists.SelectMany(l => l.Attributes))
@@ -54,16 +56,17 @@ public static class ScenarioClassReader
             }
         }
 
-        return new ScenarioClass(FullName(scenario), fullPath, project, mods, dlcs, window);
+        var distinctMods = mods.DistinctBy(m => m.Directory, StringComparer.OrdinalIgnoreCase).ToList();
+        return new ScenarioClass(FullName(scenario), fullPath, project, distinctMods, dlcs, window);
     }
 
     private static ScenarioMod ReadMod(List<AttributeArgumentSyntax> arguments, string directory, string file)
     {
-        var modDirectory = Resolve(directory, Literal<string>(arguments.First(a => a.NameEquals == null), file));
+        var modDirectory = ModPath.Resolve(directory, Literal<string>(arguments.First(a => a.NameEquals == null), file));
         var named = arguments.Where(a => a.NameEquals != null)
             .ToDictionary(a => a.NameEquals!.Name.Identifier.Text, a => Literal<string>(a, file));
         var build = named.TryGetValue("Build", out var command)
-            ? new BuildCommand(command, named.TryGetValue("BuildIn", out var buildIn) ? Resolve(directory, buildIn) : modDirectory)
+            ? new BuildCommand(command, named.TryGetValue("BuildIn", out var buildIn) ? ModPath.Resolve(directory, buildIn) : modDirectory)
             : null;
         return new ScenarioMod(modDirectory, build);
     }
@@ -112,7 +115,4 @@ public static class ScenarioClassReader
         SimpleNameSyntax simple => simple.Identifier.Text,
         _ => name.ToString(),
     };
-
-    private static string Resolve(string baseDirectory, string path) =>
-        Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(baseDirectory, path)).TrimEnd(Path.DirectorySeparatorChar);
 }
