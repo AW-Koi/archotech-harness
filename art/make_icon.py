@@ -1,35 +1,60 @@
-"""Archotech Harness mod icon: a glowing >_ prompt centred on a dark archotech plate."""
+"""Archotech Harness icon: a glowing >_ prompt on a dark plate.
+
+Usage: make_icon.py png OUT SIZE    one PNG (the mod icon)
+       make_icon.py ico OUT         multi-size app icon, each size rendered separately
+"""
 import sys
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
-out = sys.argv[1]
 S = 1024
-glow_col, white, dark = (90, 220, 255, 230), (235, 252, 255, 255), (14, 18, 26, 255)
+GLOW, WHITE, DARK = (80, 215, 255, 255), (238, 252, 255, 255), (16, 21, 30, 255)
 
-mask = Image.new("L", (S, S), 0)
-ImageDraw.Draw(mask).rounded_rectangle((24, 24, S - 24, S - 24), radius=190, fill=255)
-img = Image.new("RGBA", (S, S), dark)
-ImageDraw.Draw(img).rounded_rectangle((24, 24, S - 24, S - 24), radius=190, outline=(70, 200, 230, 255), width=22)
 
-glow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-shapes = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-g, d = ImageDraw.Draw(glow), ImageDraw.Draw(shapes)
+def render(size):
+    small = size <= 32
+    margin = 8 if small else 40
+    fill = 0.78 if small else 0.66
+    glow_strength = 1 if small else 2
 
-chev = [(200, 300), (440, 510), (200, 720)]
-g.line(chev, fill=glow_col, width=170, joint="curve")
-d.line(chev, fill=white, width=112, joint="curve")
-bar = (530, 640, 840, 736)
-g.rectangle((bar[0] - 12, bar[1] - 12, bar[2] + 12, bar[3] + 12), fill=glow_col)
-d.rectangle(bar, fill=white)
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(img).rounded_rectangle((margin, margin, S - margin, S - margin), radius=170 if small else 200, fill=DARK)
 
-# Centre the drawn glyphs so the margins match on every side.
-left, top, right, bottom = shapes.getchannel("A").getbbox()
-dx, dy = (S - (left + right)) // 2, (S - (top + bottom)) // 2
-shapes = ImageChops.offset(shapes, dx, dy)
-glow = ImageChops.offset(glow, dx, dy)
+    # Glyphs drawn once, then scaled so their width fills the plate.
+    glyphs = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    halo = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d, h = ImageDraw.Draw(glyphs), ImageDraw.Draw(halo)
+    stroke = 150 if small else 130
+    chev = [(200, 290), (450, 510), (200, 730)]
+    h.line(chev, fill=GLOW, width=stroke + 80, joint="curve")
+    d.line(chev, fill=WHITE, width=stroke, joint="curve")
+    bar = (540, 620, 860, 620 + stroke - 20)
+    h.rectangle((bar[0] - 40, bar[1] - 40, bar[2] + 40, bar[3] + 40), fill=GLOW)
+    d.rectangle(bar, fill=WHITE)
 
-img = Image.alpha_composite(img, glow.filter(ImageFilter.GaussianBlur(34)))
-img = Image.alpha_composite(img, shapes)
-img.putalpha(mask)
-img.resize((256, 256), Image.LANCZOS).save(out)
-print("wrote", out, "offset", dx, dy)
+    box = glyphs.getchannel("A").getbbox()
+    scale = (S * fill) / (box[2] - box[0])
+    w, hgt = int((box[2] - box[0]) * scale), int((box[3] - box[1]) * scale)
+    pad = 120
+    region = (box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad)
+    size_scaled = (w + int(2 * pad * scale), hgt + int(2 * pad * scale))
+    glyphs = glyphs.crop(region).resize(size_scaled, Image.LANCZOS)
+    halo = halo.crop(region).resize(size_scaled, Image.LANCZOS).filter(ImageFilter.GaussianBlur(40 * scale))
+    at = ((S - size_scaled[0]) // 2, (S - size_scaled[1]) // 2)
+
+    layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    layer.paste(halo, at)
+    for _ in range(glow_strength):
+        img = Image.alpha_composite(img, layer)
+    layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    layer.paste(glyphs, at)
+    img = Image.alpha_composite(img, layer)
+    return img.resize((size, size), Image.LANCZOS)
+
+
+if sys.argv[1] == "png":
+    render(int(sys.argv[3])).save(sys.argv[2])
+else:
+    sizes = [16, 24, 32, 48, 64, 128, 256]
+    frames = [render(s) for s in sizes]
+    frames[-1].save(sys.argv[2], format="ICO", sizes=[(s, s) for s in sizes], append_images=frames[:-1])
+print("wrote", sys.argv[2])

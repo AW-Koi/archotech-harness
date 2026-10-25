@@ -154,7 +154,12 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
             return;
         }
 
-        TryGetProcess(session.GameProcessId)?.WaitForExit();
+        if (TryGetProcess(session.GameProcessId) is { } game)
+        {
+            using var branding = new WindowBranding(paths.WindowIcon);
+            branding.Maintain(game);
+        }
+
         Finish();
     }
 

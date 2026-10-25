@@ -25,6 +25,8 @@ public sealed class HarnessPaths
 
     public string HarnessModDirectory => Path.Combine(Home, "mod");
 
+    public string WindowIcon => Path.Combine(Home, "art", "ArchotechHarness.ico");
+
     public string WorkshopDirectory => Path.GetFullPath(Path.Combine(GameDirectory, "..", "..", "workshop", "content", "294100"));
 
     public string StateDirectory => Path.Combine(Home, ".harness");

@@ -210,6 +210,8 @@ Call it with `archo send probe '{"name":"JanitorsCloset.MopsOnMap"}'`. A mod tha
 
 `archo` starts `RimWorld.exe` with `-quicktest -savedatafolder=<profile> -WindowSize=W,H -harnessPort=N -NoCrashDialog -DisableLogStackTraces`. The quick-test start uses the Crashlanded scenario with Cassandra on Rough, on a random 250 by 250 map. The written Prefs.xml enables dev mode, opens a window instead of fullscreen, keeps the game running unfocused and mutes the sound.
 
+The watchdog titles the game window "Archotech Harness" and gives it `art/ArchotechHarness.ico`, in the title bar and on the taskbar. It reapplies both if the game resets them. It touches only the game it launched.
+
 ## Building and testing
 
 ```sh
@@ -219,9 +221,12 @@ dotnet test Source/ArchotechHarness.Cli.Tests
 
 The mod references the game's `Assembly-CSharp.dll`, `UnityStubs.dll` and `Waylith.dll` from `RIMWORLD_DIR`. This repo contains none of the game's files.
 
-## Mod icon
+## Icons
 
-`art/make_icon.py` draws `mod/About/ModIcon.png`. It needs Python with Pillow: `python art/make_icon.py mod/About/ModIcon.png`.
+`art/make_icon.py` draws both icons and needs Python with Pillow:
+
+- `python art/make_icon.py png mod/About/ModIcon.png 128` draws the mod list icon.
+- `python art/make_icon.py ico art/ArchotechHarness.ico` draws the window and taskbar icon, rendering each size from 16 to 256 px separately.
 
 ## Licence
 
