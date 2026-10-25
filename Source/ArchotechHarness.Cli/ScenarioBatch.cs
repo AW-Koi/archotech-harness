@@ -1,13 +1,20 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Text.Json.Nodes;
 
 namespace ArchotechHarness.Cli;
 
 /// <summary>Runs many scenarios across a pool of games, starting each scenario after a game's first in a fresh colony.</summary>
-/// <remarks>Each worker keeps its game while the next scenario needs the same mod and DLC set. With several workers the games run hidden.</remarks>
+/// <remarks>Each worker keeps its game while the next scenario needs the same mod and DLC set. With several workers the games run hidden.
+/// Errors that mods under test log while a group's game loads fail that group's scenarios.</remarks>
 public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, TextWriter progress)
 {
+    private const int LoggedLoadErrors = 5;
+
     private readonly object _outputLock = new();
+
+    private readonly ConcurrentDictionary<ScenarioGroup, GameLoad> _loads = new();
 
     private RestoreReport? _lastRestore;
 
@@ -32,7 +39,8 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
             project => project,
             project => ScenarioProjectBuilder.Build(project, Path.Combine(options.OutputDirectory, "bin", Path.GetFileNameWithoutExtension(project))));
 
-        var queue = new WorkQueue(ScenarioGrouping.Group(scenarios));
+        var groups = ScenarioGrouping.Group(scenarios);
+        var queue = new WorkQueue(groups);
         var workers = WorkerCount.Choose(options.Workers, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes, Environment.ProcessorCount, scenarios.Count);
         var outcomes = new List<ScenarioOutcome>();
         var timer = Stopwatch.StartNew();
@@ -50,19 +58,76 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
 
         var restore = sessions.StopAll() ?? _lastRestore;
         var ordered = scenarios.Select(s => outcomes.First(o => o.Scenario == s)).ToList();
-        RunReport.WriteJson(Path.Combine(options.OutputDirectory, "run.json"), ordered);
-        HtmlReport.Write(Path.Combine(options.OutputDirectory, "report.html"), ordered);
+        var loads = groups.Where(_loads.ContainsKey).Select(g => _loads[g]).ToList();
+        RunReport.WriteJson(Path.Combine(options.OutputDirectory, "run.json"), ordered, loads);
+        HtmlReport.Write(Path.Combine(options.OutputDirectory, "report.html"), ordered, loads);
         Emit(new JsonObject
         {
             ["scenarios"] = ordered.Count,
             ["failed"] = ordered.Count(o => !o.Passed),
             ["workers"] = workers,
+            ["loadErrors"] = loads.Sum(l => l.Errors.Count),
+            ["loadErrorsFromModsUnderTest"] = loads.Sum(l => l.FromModsUnderTest.Count),
             ["seconds"] = Math.Round(timer.Elapsed.TotalSeconds, 1),
             ["playerFilesVerified"] = restore?.Verified,
             ["report"] = Path.Combine(options.OutputDirectory, "report.html"),
             ["json"] = Path.Combine(options.OutputDirectory, "run.json"),
         });
         return ordered;
+    }
+
+    /// <summary>Reads the errors a group's freshly booted game logged, once per group, and reports them.</summary>
+    private void RecordLoad(ScenarioGroup group, SessionState session)
+    {
+        if (_loads.ContainsKey(group))
+        {
+            return;
+        }
+
+        var modsUnderTest = group.Mods.Select(m => ModFingerprint.Read(m.Directory, Sessions.InstalledDirectory(m.Directory))).ToList();
+        var load = new GameLoad(group.Name, ReadLoggedErrors(session).Select(text => LoadErrorAttribution.Attribute(text, modsUnderTest)).ToList());
+        if (!_loads.TryAdd(group, load) || load.Errors.Count == 0)
+        {
+            return;
+        }
+
+        var lines = new List<string>
+        {
+            $"Game load for {group.Name}: {load.FromModsUnderTest.Count} error(s) from mods under test, " +
+            $"{load.Errors.Count - load.FromModsUnderTest.Count} from the base game or other mods.",
+        };
+        foreach (var fromModUnderTest in new[] { true, false })
+        {
+            var errors = load.Errors.Where(e => e.FromModUnderTest == fromModUnderTest).ToList();
+            lines.AddRange(errors.Take(LoggedLoadErrors).Select(e =>
+                $"  {(fromModUnderTest ? "Load error" : "Load warning")} ({e.Mod ?? "base game or another mod"}): {GameLoad.FirstLine(e.Text)}"));
+            if (errors.Count > LoggedLoadErrors)
+            {
+                lines.Add($"  ...and {errors.Count - LoggedLoadErrors} more; see report.html.");
+            }
+        }
+
+        Progress(string.Join(Environment.NewLine, lines));
+    }
+
+    private IReadOnlyList<string> ReadLoggedErrors(SessionState session)
+    {
+        try
+        {
+            var response = new HarnessClient(session.Port).Send("log", new JsonObject { ["minLevel"] = "error", ["count"] = 100000 });
+            if (response["ok"]?.GetValue<bool>() == true)
+            {
+                return response["result"]?["entries"]?.AsArray().Select(e => e?["text"]?.ToString()).OfType<string>().ToList() ?? [];
+            }
+
+            Progress($"Could not read the game's load errors: {response["error"]}");
+        }
+        catch (Exception e) when (e is IOException or SocketException)
+        {
+            Progress($"Could not read the game's load errors: {e.Message}");
+        }
+
+        return [];
     }
 
     /// <summary>Keeps the restore report of whichever session ended last.</summary>
@@ -193,6 +258,12 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
                 try
                 {
                     var session = EnsureGame(group);
+                    if (batch._loads.GetValueOrDefault(group)?.Failure(options.AllowLoadErrors) is { } loadFailure)
+                    {
+                        return new ScenarioOutcome(scenario, group.Name, false, attempt, 0, 0, loadFailure,
+                            new JsonObject { ["passed"] = false, ["error"] = loadFailure }, outputDirectory);
+                    }
+
                     if (!_freshGame)
                     {
                         setup = ScenarioInvoker.NewGame(new HarnessClient(session.Port));
@@ -241,6 +312,7 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
                 new LaunchOptions(group.Dlcs, group.Mods.Select(m => m with { Build = null }).ToList(), group.Window, hidden ? 0 : options.Port, hidden),
                 id, checkBusy: false);
             _freshGame = true;
+            batch.RecordLoad(group, _session);
             return _session;
         }
     }

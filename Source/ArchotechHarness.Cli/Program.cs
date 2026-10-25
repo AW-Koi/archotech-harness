@@ -10,7 +10,7 @@ public static class Program
 
           archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
           archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--video] [--out DIR] [--port N]
-          archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--video] [--out DIR]
+          archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--video] [--allow-load-errors] [--out DIR]
           archo send COMMAND ['{"json":"args"}'] [--session ID]
           archo capture PATH.png [--session ID]
           archo status
@@ -85,7 +85,8 @@ public static class Program
         WaitIfAsked(sessions, options);
         PruneOldRuns(paths, sessions);
         var outcomes = new ScenarioBatch(sessions, Console.Out, Console.Error).Run(new BatchOptions(
-            scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port(), options.Value("--workers"), options.VideoFps()));
+            scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port(), options.Value("--workers"), options.VideoFps(),
+            options.Flag("--allow-load-errors")));
         return outcomes.All(o => o.Passed) ? 0 : 1;
     }
 

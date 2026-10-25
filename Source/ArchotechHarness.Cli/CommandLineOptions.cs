@@ -3,7 +3,7 @@ namespace ArchotechHarness.Cli;
 /// <summary>Splits archo arguments into positionals, --flags and --name value options.</summary>
 public sealed class CommandLineOptions
 {
-    private static readonly HashSet<string> Flags = ["--keep-open", "--problems", "--attach", "--wait", "--video", "--dry-run"];
+    private static readonly HashSet<string> Flags = ["--keep-open", "--problems", "--attach", "--wait", "--video", "--dry-run", "--allow-load-errors"];
 
     private readonly List<string> _positionals = [];
     private readonly List<(string Name, string Value)> _values = [];

@@ -10,26 +10,27 @@ namespace ArchotechHarness.Cli;
 public static class HtmlReport
 {
     private const string Style = """
-        :root { color-scheme: light dark; --ok: #1f8a4c; --bad: #c0392b; --muted: #777; --line: #8884; }
+        :root { color-scheme: light dark; --ok: #1f8a4c; --bad: #c0392b; --warn: #b7791f; --muted: #777; --line: #8884; }
         body { font: 14px/1.45 system-ui, sans-serif; margin: 0 auto; max-width: 1100px; padding: 16px; }
         h1 { font-size: 20px; } h2 { font-size: 16px; margin: 0; }
         .summary { margin-bottom: 16px; color: var(--muted); }
         details { border: 1px solid var(--line); border-radius: 8px; margin: 10px 0; padding: 10px 14px; }
         summary { cursor: pointer; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-        .ok { color: var(--ok); } .bad { color: var(--bad); } .muted { color: var(--muted); }
+        .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); } .muted { color: var(--muted); }
         ul { padding-left: 20px; } code, pre { font: 12px ui-monospace, monospace; }
         pre { white-space: pre-wrap; overflow-wrap: anywhere; }
         img { max-width: 100%; border-radius: 4px; margin: 6px 0; }
         table { border-collapse: collapse; } td { border-top: 1px solid var(--line); padding: 2px 10px 2px 0; vertical-align: top; }
         """;
 
-    public static void Write(string path, IReadOnlyList<ScenarioOutcome> outcomes)
+    public static void Write(string path, IReadOnlyList<ScenarioOutcome> outcomes, IReadOnlyList<GameLoad>? loads = null)
     {
         var reportDirectory = Path.GetDirectoryName(Path.GetFullPath(path))!;
         var html = new StringBuilder();
         var failed = outcomes.Count(o => !o.Passed);
         html.Append($"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Archotech Harness report</title><style>{Style}</style></head><body>");
         html.Append($"<h1>Archotech Harness report</h1><p class=\"summary\">{outcomes.Count} scenarios, <span class=\"{(failed == 0 ? "ok" : "bad")}\">{failed} failed</span>, {Seconds(outcomes.Sum(o => o.SetupSeconds + o.RunSeconds))} in game.</p>");
+        AppendGameLoad(html, loads ?? []);
         foreach (var group in outcomes.GroupBy(o => o.Group))
         {
             html.Append($"<h2>{Encode(group.Key)}</h2>");
@@ -42,6 +43,26 @@ public static class HtmlReport
         html.Append("</body></html>");
         Directory.CreateDirectory(reportDirectory);
         File.WriteAllText(path, html.ToString());
+    }
+
+    private static void AppendGameLoad(StringBuilder html, IReadOnlyList<GameLoad> loads)
+    {
+        if (loads.Count == 0)
+        {
+            return;
+        }
+
+        html.Append("<h2>Game load</h2>");
+        if (loads.All(l => l.Errors.Count == 0))
+        {
+            html.Append("<p class=\"muted\">No errors while the games loaded.</p>");
+        }
+
+        foreach (var load in loads.Where(l => l.Errors.Count > 0))
+        {
+            AppendList(html, Encode(load.Group), load.Errors.Select(e =>
+                $"<span class=\"muted\">{Encode(e.Mod ?? "base game or another mod")}</span><pre class=\"{(e.FromModUnderTest ? "bad" : "warn")}\">{Encode(e.Text)}</pre>"));
+        }
     }
 
     private static void AppendOutcome(StringBuilder html, ScenarioOutcome outcome, string reportDirectory)

@@ -8,7 +8,7 @@ public static class RunReport
 {
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
 
-    public static JsonObject ToJson(IReadOnlyList<ScenarioOutcome> outcomes) => new()
+    public static JsonObject ToJson(IReadOnlyList<ScenarioOutcome> outcomes, IReadOnlyList<GameLoad>? loads = null) => new()
     {
         ["scenarios"] = outcomes.Count,
         ["failed"] = outcomes.Count(o => !o.Passed),
@@ -26,11 +26,21 @@ public static class RunReport
             ["outputDirectory"] = o.OutputDirectory,
             ["report"] = o.Report?.DeepClone(),
         }).ToArray()),
+        ["gameLoad"] = new JsonArray((loads ?? []).Select(l => (JsonNode)new JsonObject
+        {
+            ["group"] = l.Group,
+            ["errors"] = new JsonArray(l.Errors.Select(e => (JsonNode)new JsonObject
+            {
+                ["text"] = e.Text,
+                ["mod"] = e.Mod,
+                ["modUnderTest"] = e.FromModUnderTest,
+            }).ToArray()),
+        }).ToArray()),
     };
 
-    public static void WriteJson(string path, IReadOnlyList<ScenarioOutcome> outcomes)
+    public static void WriteJson(string path, IReadOnlyList<ScenarioOutcome> outcomes, IReadOnlyList<GameLoad>? loads = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path, ToJson(outcomes).ToJsonString(Indented));
+        File.WriteAllText(path, ToJson(outcomes, loads).ToJsonString(Indented));
     }
 }

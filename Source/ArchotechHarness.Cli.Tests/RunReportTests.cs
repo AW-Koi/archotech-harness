@@ -18,6 +18,12 @@ public sealed class RunReportTests : IDisposable
 
     private static readonly WindowSize Window = new(1600, 900);
 
+    private static readonly GameLoad MopModLoad = new("MopMod",
+    [
+        new LoadError("[Mop Mod] Patch operation failed", "Mop Mod", FromModUnderTest: true),
+        new LoadError("Getting apparel graphic with undefined body type.", null, FromModUnderTest: false),
+    ]);
+
     private readonly TempDirectory _temp = new();
 
     public void Dispose() => _temp.Dispose();
@@ -104,6 +110,33 @@ public sealed class RunReportTests : IDisposable
         HtmlReport.Write(path, [Outcome("MopsTheFloor", report.ToJsonString())]);
 
         Assert.Contains("<video controls src=\"MopsTheFloor/video.mp4\"", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void Json_GameLoad_ListsEachErrorWithItsGroupAndMod()
+    {
+        var path = _temp.Combine("run.json");
+
+        RunReport.WriteJson(path, [Outcome("SweepsTheHall", PassedReport)], [MopModLoad]);
+
+        var gameLoad = JsonNode.Parse(File.ReadAllText(path))!["gameLoad"]!;
+        Assert.Equal(
+            """[{"group":"MopMod","errors":[{"text":"[Mop Mod] Patch operation failed","mod":"Mop Mod","modUnderTest":true},""" +
+            """{"text":"Getting apparel graphic with undefined body type.","mod":null,"modUnderTest":false}]}]""",
+            gameLoad.ToJsonString());
+    }
+
+    [Fact]
+    public void Html_GameLoad_ShowsModUnderTestErrorsAsFailuresAndOthersAsWarnings()
+    {
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("SweepsTheHall", PassedReport)], [MopModLoad]);
+
+        var html = File.ReadAllText(path);
+        Assert.Contains("<h2>Game load</h2>", html);
+        Assert.Contains("<li><span class=\"muted\">Mop Mod</span><pre class=\"bad\">[Mop Mod] Patch operation failed</pre></li>", html);
+        Assert.Contains("<li><span class=\"muted\">base game or another mod</span><pre class=\"warn\">Getting apparel graphic with undefined body type.</pre></li>", html);
     }
 
     private ScenarioOutcome Outcome(string name, string report)

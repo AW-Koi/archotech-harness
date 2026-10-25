@@ -29,6 +29,9 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
 
     public SessionState? Find(string id) => SessionState.Load(paths.SessionFile(id));
 
+    /// <summary>The folder in the Mods folder that holds a mod's package id, or null when none does.</summary>
+    public string? InstalledDirectory(string modDirectory) => ModFolder.FindInstalled(paths.ModsDirectory, ModFolder.ReadPackageId(modDirectory));
+
     /// <summary>Throws a clear message when another archo session, or a RimWorld outside archo, is running.</summary>
     public void ThrowIfBusy(IReadOnlyCollection<string>? ownSessions = null)
     {

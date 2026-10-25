@@ -22,7 +22,7 @@ In PowerShell, use `.\archo.ps1` instead of `./archo`.
 
 The first run builds `archo` and the harness mod, and later runs rebuild them when a file under `Source/` is newer than the last build, such as after a `git pull`. Set `ARCHO_REBUILD=1` to force a rebuild. The game opens, the scenario runs and the game closes. `archo` prints a JSON report and saves it, with the screenshots, in `.harness/runs/<scenario>-<time>/`.
 
-Run every scenario in a folder with `./archo test scenarios`. That writes `report.html` to `.harness/test-runs/<time>/`, with each scenario's checks, notes, screenshots and a timeline of its steps.
+Run every scenario in a folder with `./archo test scenarios`. That writes `report.html` and `run.json` to `.harness/test-runs/<time>/`, with each scenario's checks, notes, screenshots and a timeline of its steps, and a "Game load" section (`gameLoad` in `run.json`) with the errors each game logged while it loaded.
 
 ## Writing a scenario
 
@@ -166,6 +166,7 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 | `archo test --filter GLOB` | Runs only matching scenarios, such as `--filter "Mop*"`. Repeat it to match several patterns. |
 | `archo test --retries N` | Retries a failed scenario up to N times. |
 | `archo test --workers N` | Runs N games at once. `--workers auto` picks a number that fits your machine. |
+| `archo test --allow-load-errors` | Runs the scenarios even when a mod under test logged errors while the game loaded. See [Load errors](#load-errors). |
 | `archo test --video` | Records a video of each scenario into the report. It needs ffmpeg, on the PATH, installed with WinGet, or named by the `FFMPEG` environment variable. `--video-fps N` sets the frame rate (default 5). `run` takes it too. |
 | `archo launch` | Starts a game and leaves it running for `send`. `--mod DIR` and `--dlc NAME` choose what it loads. |
 | `archo send COMMAND ['{json}']` | Sends one command to the running game, such as `status`. |
@@ -177,6 +178,10 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 Add `--wait` to `run` or `test` to wait for another game to close instead of stopping with an error. `archo test` exits with code 0 only when every scenario passed.
 
 Before each `run` or `test`, `archo` deletes the oldest folders in `.harness/runs/` and `.harness/test-runs/`. It keeps the 20 newest in each, up to 1024 MB per folder, and always the newest one. Set `ARCHO_KEEP_RUNS` (a number, or `all`) and `ARCHO_KEEP_MB` (`0` for no cap) to change that. It skips this while a game from this checkout is running, and never touches folders you write elsewhere with `--out`.
+
+### Load errors
+
+When `archo test` boots a game, it reads the errors the game logged while it loaded and set up its first colony, such as failed patch operations, config errors and exceptions. It blames an error on a mod under test when the error starts with the mod's name or package id in brackets, names one of its defs or def files, names a file in its folder, or names a type in one of its assembly namespaces. An error from a mod under test fails every scenario in that game's group, and the scenario error quotes the first three. Errors from the base game or other mods show as warnings in the console and the report. Pass `--allow-load-errors` to run the scenarios anyway.
 
 ## Reference
 
