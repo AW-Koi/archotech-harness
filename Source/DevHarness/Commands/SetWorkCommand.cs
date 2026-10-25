@@ -36,7 +36,7 @@ public static class SetWorkCommand
                 throw new HarnessException($"{pawn.LabelShort} cannot do {workType.defName}.");
             }
 
-            pawn.workSettings.SetPriority(workType, (int)priority!.GetValue<double>());
+            pawn.workSettings.SetPriority(workType, (int)Arguments.Number(priority!));
         }
     }
 

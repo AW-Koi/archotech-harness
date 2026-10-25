@@ -31,7 +31,7 @@ public static class CameraCommand
         driver.JumpToCurrentMapLoc(cell);
         if (args["zoom"] is JsonValue zoom)
         {
-            driver.SetRootSize(zoom.GetValueKind() == JsonValueKind.Number ? (float)zoom.GetValue<double>() : Named(zoom.ToString()));
+            driver.SetRootSize(zoom.GetValueKind() == JsonValueKind.Number ? (float)Arguments.Number(zoom) : Named(zoom.ToString()));
         }
 
         return CommandResult.Done(new JsonObject { ["cell"] = Arguments.Json(cell), ["rootSize"] = driver.RootSize });

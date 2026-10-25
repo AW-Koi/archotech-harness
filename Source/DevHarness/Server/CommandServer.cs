@@ -90,7 +90,7 @@ public static class CommandServer
         }
         else
         {
-            var timeout = request["timeoutSeconds"]?.GetValue<double>() ?? DefaultTimeoutSeconds;
+            var timeout = request["timeoutSeconds"] is { } requested ? Commands.Arguments.Number(requested) : DefaultTimeoutSeconds;
             var command = new PendingCommand(name, request, DateTime.UtcNow.AddSeconds(timeout + 5));
             MainThreadDispatcher.Enqueue(command);
             var finished = await Task.WhenAny(command.Response.Task, Task.Delay(TimeSpan.FromSeconds(timeout + 10)));

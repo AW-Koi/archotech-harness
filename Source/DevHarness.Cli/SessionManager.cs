@@ -215,7 +215,7 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
         progress.WriteLine($"Linked {modDirectory} into the Mods folder as {Path.GetFileName(link)}.");
     }
 
-    private void Build(BuildCommand build)
+    public void Build(BuildCommand build)
     {
         progress.WriteLine($"Building: {build.Command} (in {build.WorkingDirectory})");
         var start = new ProcessStartInfo("cmd.exe")

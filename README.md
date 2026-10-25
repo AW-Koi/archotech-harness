@@ -6,7 +6,7 @@ The harness has three parts:
 
 - `rwh`, a command-line tool that prepares a dev profile, launches the game straight into a quick-test map, sends commands and restores your files afterwards.
 - A dev-only mod (`TerraIncognita.RimWorldDevHarness`) that listens on `127.0.0.1` and runs commands on the game's main thread.
-- Scenario files: JSON lists of commands that `rwh run` plays in order.
+- Scenarios: C# scripts (`.csx`) that `rwh run` compiles and runs inside the game. JSON step lists also work.
 
 ## Requirements
 
@@ -21,16 +21,16 @@ If RimWorld isn't installed at `D:\Program Files (x86)\Steam\steamapps\common\Ri
 From Git Bash:
 
 ```sh
-./rwh run scenarios/janitor-basics.json
+./rwh run scenarios/janitor-basics.csx
 ```
 
 From PowerShell:
 
 ```powershell
-.\rwh.ps1 run scenarios\janitor-basics.json
+.\rwh.ps1 run scenarios\janitor-basics.csx
 ```
 
-The first call builds the CLI and the mod. Set `RWH_REBUILD=1` to rebuild after you pull changes. Each step prints one JSON line, and a summary line follows. Screenshots and `results.json` go to `.harness/runs/<scenario>-<timestamp>/`, or to the folder you pass with `--out`.
+The first call builds the CLI and the mod. Set `RWH_REBUILD=1` to rebuild after you pull changes. A script run prints one JSON report line. Screenshots and the report go to `.harness/runs/<scenario>-<timestamp>/`, or to the folder you pass with `--out`.
 
 ## What happens to your game files
 
@@ -40,12 +40,75 @@ The first call builds the CLI and the mod. Set `RWH_REBUILD=1` to rebuild after 
 - **Mods folder:** `rwh` links the harness mod, and any mod under test that isn't already installed, into `<RimWorld>/Mods` as `rwh-<packageId>` directory junctions. It removes them when the session ends.
 - **A game you're playing:** `rwh` refuses to start if RimWorld is already running.
 
+## Scenario scripts
+
+A scenario is a C# script. It runs on the game's main thread with full access to the game and every loaded mod, and `await` waits without freezing the game:
+
+```csharp
+#mod "../../JanitorsCloset/mod"
+#build "dotnet build Source/JanitorsCloset/JanitorsCloset.csproj" in "../../JanitorsCloset"
+using JanitorsCloset.Defs;
+
+var room = Build.Room(World.Center, width: 11, height: 9, floor: "WoodPlankFloor", door: Rot4.South);
+var mopper = Spawn.Colonist("Mopper", inside: room, work: [WorkTypeDefOf.Cleaning]);
+mopper.Equip(JanitorDefOf.Janitor_Mop.defName);
+Colonists.RemoveAllExcept(mopper);
+
+room.Scatter("Filth_Blood", 12);
+var before = room.Filth().Count;
+await Shot("before");
+
+Clock.Speed = TimeSpeed.Superfast;
+await Until(() => room.Filth().Count < before);
+Check(mopper.CurrentJob() == "Clean");
+await Shot("after");
+```
+
+`rwh run` builds the listed mods and compiles the script before it launches the game. A compile error is reported as `file(line,column)` and the game never starts. A runtime error is reported with the script line it came from.
+
+### Directives
+
+Each directive goes on its own line at the top of the script. Paths are relative to the script.
+
+| Directive | Does |
+| --- | --- |
+| `#mod "DIR"` | Loads a mod under test; DIR holds `About/About.xml`. Its assemblies become references. |
+| `#build "COMMAND" in "DIR"` | Runs COMMAND in DIR before launch, for the `#mod` above it. |
+| `#dlc biotech, ideology` | Activates DLCs. |
+| `#window 1600x900` | Sets the window size. |
+| `#load "helpers.cs"` | Compiles a C# file with the script, for shared classes and setup. |
+
+The script imports `System`, `System.Collections.Generic`, `System.Linq`, `System.Threading.Tasks`, `Verse`, `Verse.AI`, `RimWorld` and `DevHarness.Scripting`. Add more `using` lines at the top.
+
+### Script API
+
+| Member | Does |
+| --- | --- |
+| `World.Map`, `World.Center` | The current map and its centre cell. |
+| `World.Filth(area, defs)`, `World.Things(def, area)`, `World.Pawn(name)` | Queries the map. |
+| `Build.Room(center, width, height, floor, wall, stuff, door, roof)` | Clears the area and builds a finished walled room. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(defs)` and `Scatter(def, count, seed)`. |
+| `Spawn.Colonist(name, at, inside, work, traits, onlyWork)` | Generates a colonist able to do `work` (WorkTypeDefs); with `onlyWork`, all other work is off. Traits are `"Def"` or `"Def:degree"`. |
+| `Spawn.Thing(def, at, count, stuff)`, `Spawn.Filth(def, at)` | Places things. |
+| `pawn.Equip(def, stuff, quality)`, `pawn.SetWork(workType, priority)`, `pawn.CurrentJob()` | Pawn shortcuts. |
+| `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. |
+| `Camera.Look(cell, zoom)`, `Camera.Frame(room)`, `Camera.Follow(pawn)` | Points the camera. |
+| `Clock.Speed`, `Clock.Tick` | Game speed and tick. A speed set here holds until changed. |
+| `await Until(() => condition, timeoutSeconds)` | Waits, checking once per frame. Throws `TimeoutException` on timeout. |
+| `await Ticks(n)`, `await Frames(n)` | Waits for game ticks or rendered frames. |
+| `await Shot(name)` | Saves a screenshot to the run folder. |
+| `Check(condition)` | Records a check; a failed check fails the run, and the script carries on. |
+| `Require(condition)` | Records a check and stops the script if it fails. |
+| `Note(key, value)` | Adds a value to the report. |
+| `await Command(name, args)` | Runs any harness command below. |
+
+The report lists `passed`, `checks` (with the source text of each condition), `notes`, `shots`, `gameErrors` logged during the run, and on failure the `error` with the script lines in `at`.
+
 ## Commands
 
 | Command | Does |
 | --- | --- |
 | `rwh launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]` | Starts a session and returns once the map is loaded. |
-| `rwh run SCENARIO.json [--keep-open] [--out DIR]` | Runs a scenario, starting a session if none is running. |
+| `rwh run SCENARIO [--keep-open] [--out DIR]` | Runs a `.csx` script or a `.json` step list, starting a session if none is running. |
 | `rwh send COMMAND ['{json args}']` | Sends one harness command and prints the response. |
 | `rwh capture PATH.png` | Captures the game window from outside the game. |
 | `rwh status` | Shows whether a session is running. |
@@ -78,6 +141,7 @@ Send them with `rwh send`, or use them as scenario steps. Cells are `[x, z]` or 
 | `listProbes` | none | All probe and command names. |
 | `log` | `minLevel` (`message`, `warning`, `error`), `count`, `contains` | `errors`, `warnings` and the matching `entries`. |
 | `quit` | none | Closes the game without saving. |
+| `runScript` | `assembly`, `entryType`, `outputDirectory` | Loads a compiled script and replies with its report when it ends. `rwh run` sends this for you. |
 
 `op` is one of `eq`, `ne`, `lt`, `le`, `gt` or `ge`. Without an `op`, a condition holds when the value is `true` or a non-zero number. Game time passes only while the game runs, so set a speed before a `wait`.
 
@@ -102,7 +166,9 @@ public static class DevHarnessProbes
 
 Call it with `rwh send probe '{"name":"JanitorsCloset.MopsOnMap"}'`. A mod that references `DevHarness.dll` can call `DevHarness.HarnessProbes.Register(name, json => resultJson)` instead.
 
-## Scenario format
+## JSON scenario format
+
+JSON step lists run the harness commands in order. They suit quick, linear checks; use a script for anything with logic.
 
 ```json
 {

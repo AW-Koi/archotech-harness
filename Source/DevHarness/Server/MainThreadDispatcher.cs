@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using DevHarness.Commands;
+using DevHarness.Scripting;
 
 namespace DevHarness.Server;
 
@@ -23,6 +24,13 @@ public static class MainThreadDispatcher
         {
             Start(command);
         }
+
+        if (ScriptSession.Current is { } script)
+        {
+            MainThreadContext.Instance.Run(script.Tick);
+        }
+
+        MainThreadContext.Instance.Drain();
 
         for (var i = Waiting.Count - 1; i >= 0; i--)
         {

@@ -25,6 +25,8 @@ public sealed class HarnessPaths
 
     public string HarnessModDirectory => Path.Combine(Home, "mod");
 
+    public string WorkshopDirectory => Path.GetFullPath(Path.Combine(GameDirectory, "..", "..", "workshop", "content", "294100"));
+
     public string StateDirectory => Path.Combine(Home, ".harness");
 
     /// <summary>The isolated save data folder passed to the game with -savedatafolder.</summary>

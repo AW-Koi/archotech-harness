@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -18,13 +19,17 @@ public static class Arguments
         String(args, key) ?? throw new HarnessException($"Missing \"{key}\".");
 
     public static int Int(JsonObject args, string key, int fallback) =>
-        args[key] is JsonValue value ? (int)value.GetValue<double>() : fallback;
+        args[key] is JsonValue value ? (int)Number(value) : fallback;
 
     public static float Float(JsonObject args, string key, float fallback) =>
-        args[key] is JsonValue value ? (float)value.GetValue<double>() : fallback;
+        args[key] is JsonValue value ? (float)Number(value) : fallback;
 
     public static bool Bool(JsonObject args, string key, bool fallback) =>
         args[key] is JsonValue value ? value.GetValue<bool>() : fallback;
+
+    /// <summary>Reads any JSON number, whether parsed from text or created from a CLR value.</summary>
+    public static double Number(JsonNode node) =>
+        double.Parse(node.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture);
 
     public static IEnumerable<string> Strings(JsonObject args, string key) => args[key] switch
     {
@@ -50,7 +55,7 @@ public static class Arguments
         IntVec3 cell = node switch
         {
             JsonValue v when v.GetValueKind() == JsonValueKind.String && v.ToString() == "center" => map.Center,
-            JsonArray a when a.Count == 2 => new IntVec3((int)a[0]!.GetValue<double>(), 0, (int)a[1]!.GetValue<double>()),
+            JsonArray a when a.Count == 2 => new IntVec3((int)Number(a[0]!), 0, (int)Number(a[1]!)),
             JsonObject o => new IntVec3(Int(o, "x", 0), 0, Int(o, "z", 0)),
             _ => throw new HarnessException($"\"{key}\" must be [x, z], {{\"x\":, \"z\":}} or \"center\"."),
         };
@@ -68,7 +73,7 @@ public static class Arguments
         var rect = args[key] switch
         {
             JsonArray a when a.Count == 4 => new CellRect(
-                (int)a[0]!.GetValue<double>(), (int)a[1]!.GetValue<double>(), (int)a[2]!.GetValue<double>(), (int)a[3]!.GetValue<double>()),
+                (int)Number(a[0]!), (int)Number(a[1]!), (int)Number(a[2]!), (int)Number(a[3]!)),
             JsonObject o => new CellRect(Int(o, "x", 0), Int(o, "z", 0), Int(o, "width", 1), Int(o, "height", 1)),
             null => throw new HarnessException($"Missing \"{key}\"."),
             _ => throw new HarnessException($"\"{key}\" must be [x, z, width, height]."),

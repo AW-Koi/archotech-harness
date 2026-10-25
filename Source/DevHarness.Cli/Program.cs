@@ -9,7 +9,7 @@ public static class Program
         rwh: drive RimWorld 1.7 through the dev harness mod.
 
           rwh launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
-          rwh run SCENARIO.json [--keep-open] [--out DIR] [--port N]
+          rwh run SCENARIO.csx|SCENARIO.json [--keep-open] [--out DIR] [--port N]
           rwh send COMMAND ['{"json":"args"}']
           rwh capture PATH.png
           rwh status
@@ -61,11 +61,15 @@ public static class Program
 
     private static int Run(HarnessPaths paths, SessionManager sessions, CommandLineOptions options)
     {
-        var scenario = ScenarioLoader.Load(options.Positional(0, "scenario file"));
+        var file = options.Positional(0, "scenario file");
+        var isScript = Path.GetExtension(file).Equals(".csx", StringComparison.OrdinalIgnoreCase);
+        var name = isScript ? Path.GetFileNameWithoutExtension(file) : ScenarioLoader.Load(file).Name;
         var runDirectory = options.Value("--out") is { } outDirectory
             ? Path.GetFullPath(outDirectory)
-            : Path.Combine(paths.RunsDirectory, $"{scenario.Name}-{DateTime.Now:yyyyMMdd-HHmmss}");
-        var passed = new ScenarioRunner(sessions, Console.Out).Run(scenario, runDirectory, options.Flag("--keep-open"), options.Port());
+            : Path.Combine(paths.RunsDirectory, $"{name}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        var passed = isScript
+            ? new ScriptScenarioRunner(paths, sessions, Console.Out).Run(file, runDirectory, options.Flag("--keep-open"), options.Port())
+            : new ScenarioRunner(sessions, Console.Out).Run(ScenarioLoader.Load(file), runDirectory, options.Flag("--keep-open"), options.Port());
         return passed ? 0 : 1;
     }
 

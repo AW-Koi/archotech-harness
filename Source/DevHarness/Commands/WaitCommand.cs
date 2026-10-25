@@ -15,7 +15,7 @@ public static class WaitCommand
     {
         Arguments.CurrentMap();
         var started = DateTime.UtcNow;
-        var deadline = started.AddSeconds(args["timeoutSeconds"]?.GetValue<double>() ?? DefaultTimeoutSeconds);
+        var deadline = started.AddSeconds(args["timeoutSeconds"] is { } timeout ? Arguments.Number(timeout) : DefaultTimeoutSeconds);
         var startTick = Find.TickManager.TicksGame;
 
         if (args["ticks"] != null || args["untilTick"] != null)

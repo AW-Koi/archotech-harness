@@ -27,6 +27,7 @@ public static class CommandRegistry
             ["listProbes"] = ProbeCommand.List,
             ["log"] = LogCommand.Run,
             ["quit"] = QuitCommand.Run,
+            ["runScript"] = RunScriptCommand.Run,
         };
 
     public static IEnumerable<string> Names => Handlers.Keys.OrderBy(n => n);
