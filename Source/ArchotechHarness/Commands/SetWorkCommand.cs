@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Verse;
@@ -12,11 +13,13 @@ public static class SetWorkCommand
     {
         var pawn = Arguments.Pawn(args);
         var priorities = args["priorities"] as JsonObject ?? throw new HarnessException("Missing \"priorities\".");
-        Apply(pawn, priorities, Arguments.Bool(args, "onlyWork", false));
+        Apply(pawn,
+            priorities.ToDictionary(entry => Arguments.Def<WorkTypeDef>(entry.Key), entry => (int)Arguments.Number(entry.Value!)),
+            Arguments.Bool(args, "onlyWork", false));
         return CommandResult.Done(WorkPriorities(pawn));
     }
 
-    public static void Apply(Pawn pawn, JsonObject priorities, bool onlyWork)
+    public static void Apply(Pawn pawn, IReadOnlyDictionary<WorkTypeDef, int> priorities, bool onlyWork)
     {
         Find.PlaySettings.useWorkPriorities = true;
         pawn.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
@@ -28,15 +31,14 @@ public static class SetWorkCommand
             }
         }
 
-        foreach (var (name, priority) in priorities)
+        foreach (var (workType, priority) in priorities)
         {
-            var workType = Arguments.Def<WorkTypeDef>(name);
             if (pawn.WorkTypeIsDisabled(workType))
             {
                 throw new HarnessException($"{pawn.LabelShort} cannot do {workType.defName}.");
             }
 
-            pawn.workSettings.SetPriority(workType, (int)Arguments.Number(priority!));
+            pawn.workSettings.SetPriority(workType, priority);
         }
     }
 

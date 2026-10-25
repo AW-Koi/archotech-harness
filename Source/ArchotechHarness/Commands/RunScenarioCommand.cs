@@ -19,6 +19,7 @@ public static class RunScenarioCommand
         Arguments.CurrentMap();
         ScriptSession.Current?.End();
         var assembly = Assembly.LoadFrom(Arguments.RequiredString(args, "assembly"));
+        DefOfBinder.Bind(DefOfBinder.DefOfClasses(assembly));
         var typeName = Arguments.RequiredString(args, "entryType");
         var type = assembly.GetType(typeName) ?? throw new HarnessException($"The scenarios assembly has no type {typeName}.");
         if (!typeof(HarnessScenario).IsAssignableFrom(type))

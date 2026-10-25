@@ -18,30 +18,45 @@ public static class BuildRoomCommand
             throw new HarnessException("A room needs at least a 3x3 rectangle.");
         }
 
-        var wallDef = Arguments.Def<ThingDef>(Arguments.String(args, "wall", "Wall"));
-        var stuffName = Arguments.String(args, "stuff", "WoodLog");
-        var stuff = wallDef.MadeFromStuff ? Arguments.Def<ThingDef>(stuffName) : null;
-        var floor = Arguments.String(args, "floor") is { } floorName ? Arguments.Def<TerrainDef>(floorName) : null;
-        IntVec3? door = args["door"] is { } doorNode ? Arguments.ToCell(doorNode, map, "door") : null;
-
-        Clear(map, rect.ExpandedBy(1).ClipInsideMap(map));
-        foreach (var cell in rect.EdgeCells)
+        var room = new RoomPlan(rect)
         {
-            var def = cell == door ? Arguments.Def<ThingDef>(Arguments.String(args, "doorDef", "Door")) : wallDef;
-            var building = ThingMaker.MakeThing(def, def.MadeFromStuff ? stuff ?? GenStuff.DefaultStuffFor(def) : null);
+            Wall = Arguments.Def<ThingDef>(Arguments.String(args, "wall", ThingDefOf.Wall.defName)),
+            Stuff = Arguments.Def<ThingDef>(Arguments.String(args, "stuff", ThingDefOf.WoodLog.defName)),
+            Floor = Arguments.String(args, "floor") is { } floorName ? Arguments.Def<TerrainDef>(floorName) : null,
+            Door = args["door"] is { } doorNode ? Arguments.ToCell(doorNode, map, "door") : null,
+            DoorDef = Arguments.Def<ThingDef>(Arguments.String(args, "doorDef", ThingDefOf.Door.defName)),
+            Roof = Arguments.Bool(args, "roof", false),
+            Home = Arguments.Bool(args, "home", true),
+        };
+        Build(map, room);
+        var interior = rect.ContractedBy(1);
+        return CommandResult.Done(new JsonObject
+        {
+            ["rect"] = new JsonArray(rect.minX, rect.minZ, rect.Width, rect.Height),
+            ["interior"] = new JsonArray(interior.minX, interior.minZ, interior.Width, interior.Height),
+            ["center"] = Arguments.Json(rect.CenterCell),
+        });
+    }
+
+    public static void Build(Map map, RoomPlan room)
+    {
+        Clear(map, room.Rect.ExpandedBy(1).ClipInsideMap(map));
+        foreach (var cell in room.Rect.EdgeCells)
+        {
+            var def = cell == room.Door ? room.DoorDef : room.Wall;
+            var building = ThingMaker.MakeThing(def, def.MadeFromStuff ? room.Stuff ?? GenStuff.DefaultStuffFor(def) : null);
             building.SetFaction(Faction.OfPlayer);
             GenSpawn.Spawn(building, cell, map);
         }
 
-        var interior = rect.ContractedBy(1);
-        foreach (var cell in interior)
+        foreach (var cell in room.Rect.ContractedBy(1))
         {
-            if (floor != null)
+            if (room.Floor != null)
             {
-                map.terrainGrid.SetTerrain(cell, floor);
+                map.terrainGrid.SetTerrain(cell, room.Floor);
             }
 
-            if (Arguments.Bool(args, "roof", false))
+            if (room.Roof)
             {
                 map.roofGrid.SetRoof(cell, RoofDefOf.RoofConstructed);
             }
@@ -52,20 +67,13 @@ public static class BuildRoomCommand
             }
         }
 
-        if (Arguments.Bool(args, "home", true))
+        if (room.Home)
         {
-            foreach (var cell in rect)
+            foreach (var cell in room.Rect)
             {
                 map.areaManager.Home[cell] = true;
             }
         }
-
-        return CommandResult.Done(new JsonObject
-        {
-            ["rect"] = new JsonArray(rect.minX, rect.minZ, rect.Width, rect.Height),
-            ["interior"] = new JsonArray(interior.minX, interior.minZ, interior.Width, interior.Height),
-            ["center"] = Arguments.Json(rect.CenterCell),
-        });
     }
 
     private static void Clear(Map map, CellRect area)

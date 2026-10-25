@@ -11,24 +11,7 @@ public static class EquipCommand
     {
         var pawn = Arguments.Pawn(args);
         var thing = ThingFactory.Make(args);
-        string slot;
-        if (thing is Apparel apparel)
-        {
-            pawn.apparel.Wear(apparel, dropReplacedApparel: false);
-            slot = "apparel";
-        }
-        else if (thing.def.equipmentType == EquipmentType.Primary && thing is ThingWithComps equipment)
-        {
-            pawn.equipment.DestroyAllEquipment();
-            pawn.equipment.AddEquipment(equipment);
-            slot = "equipment";
-        }
-        else
-        {
-            pawn.inventory.innerContainer.TryAdd(thing);
-            slot = "inventory";
-        }
-
+        var slot = Give(pawn, thing);
         return CommandResult.Done(new JsonObject
         {
             ["pawn"] = pawn.LabelShort,
@@ -36,5 +19,25 @@ public static class EquipCommand
             ["def"] = thing.def.defName,
             ["slot"] = slot,
         });
+    }
+
+    /// <summary>Returns the slot the thing went to: apparel, equipment or inventory.</summary>
+    public static string Give(Pawn pawn, Thing thing)
+    {
+        if (thing is Apparel apparel)
+        {
+            pawn.apparel.Wear(apparel, dropReplacedApparel: false);
+            return "apparel";
+        }
+
+        if (thing.def.equipmentType == EquipmentType.Primary && thing is ThingWithComps equipment)
+        {
+            pawn.equipment.DestroyAllEquipment();
+            pawn.equipment.AddEquipment(equipment);
+            return "equipment";
+        }
+
+        pawn.inventory.innerContainer.TryAdd(thing);
+        return "inventory";
     }
 }

@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scenarios", "scenarios", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scenarios", "scenarios\Scenarios.csproj", "{B8FAECB6-8D4A-4E4A-A8A8-7CCF2305A554}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArchotechHarness.Tests", "Source\ArchotechHarness.Tests\ArchotechHarness.Tests.csproj", "{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{B8FAECB6-8D4A-4E4A-A8A8-7CCF2305A554}.Release|x64.Build.0 = Release|Any CPU
 		{B8FAECB6-8D4A-4E4A-A8A8-7CCF2305A554}.Release|x86.ActiveCfg = Release|Any CPU
 		{B8FAECB6-8D4A-4E4A-A8A8-7CCF2305A554}.Release|x86.Build.0 = Release|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Debug|x64.Build.0 = Debug|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Debug|x86.Build.0 = Debug|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Release|x64.ActiveCfg = Release|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Release|x64.Build.0 = Release|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Release|x86.ActiveCfg = Release|Any CPU
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +96,6 @@ Global
 		{C462EDED-DC25-4828-BA84-2BEB969DADB7} = {B8EFCA5F-814F-285C-A8CB-F00F14650265}
 		{DBBE2AB7-77F9-45B1-9344-D899AF117313} = {B8EFCA5F-814F-285C-A8CB-F00F14650265}
 		{B8FAECB6-8D4A-4E4A-A8A8-7CCF2305A554} = {3AD4E1A9-FDA2-34BD-403E-3093DEEBD16E}
+		{C1C0BB0C-E9AD-4E0B-B2CC-C2A0352F159A} = {B8EFCA5F-814F-285C-A8CB-F00F14650265}
 	EndGlobalSection
 EndGlobal

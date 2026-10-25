@@ -18,8 +18,7 @@ public static class CameraCommand
             cell = pawn.Position;
             if (Arguments.Bool(args, "select", false))
             {
-                Find.Selector.ClearSelection();
-                Find.Selector.Select(pawn, playSound: false);
+                Select(pawn);
             }
         }
         else
@@ -27,14 +26,28 @@ public static class CameraCommand
             cell = Arguments.Cell(args, "cell", map);
         }
 
+        float? rootSize = args["zoom"] is JsonValue zoom
+            ? zoom.GetValueKind() == JsonValueKind.Number ? (float)Arguments.Number(zoom) : Named(zoom.ToString())
+            : null;
+        Look(cell, rootSize);
+        return CommandResult.Done(new JsonObject { ["cell"] = Arguments.Json(cell), ["rootSize"] = Find.CameraDriver.RootSize });
+    }
+
+    /// <summary>Without a root size, the zoom stays as it is.</summary>
+    public static void Look(IntVec3 cell, float? rootSize)
+    {
         var driver = Find.CameraDriver;
         driver.JumpToCurrentMapLoc(cell);
-        if (args["zoom"] is JsonValue zoom)
+        if (rootSize is { } size)
         {
-            driver.SetRootSize(zoom.GetValueKind() == JsonValueKind.Number ? (float)Arguments.Number(zoom) : Named(zoom.ToString()));
+            driver.SetRootSize(size);
         }
+    }
 
-        return CommandResult.Done(new JsonObject { ["cell"] = Arguments.Json(cell), ["rootSize"] = driver.RootSize });
+    public static void Select(Thing thing)
+    {
+        Find.Selector.ClearSelection();
+        Find.Selector.Select(thing, playSound: false);
     }
 
     private static float Named(string zoom) => zoom.ToLowerInvariant() switch

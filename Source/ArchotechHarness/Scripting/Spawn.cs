@@ -1,61 +1,33 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json.Nodes;
+using ArchotechHarness.Commands;
+using RimWorld;
 using Verse;
 
 namespace ArchotechHarness.Scripting;
 
-/// <summary>Creates colonists and things on the current map.</summary>
+/// <summary>Creates colonists, things and filth on the current map.</summary>
 public static class Spawn
 {
     /// <summary>Generates a colonist able to do the listed work; with onlyWork, every other work type is off.</summary>
-    /// <remarks>Traits are "defName" or "defName:degree". incapableOf swaps in a childhood that disables those work tags.</remarks>
+    /// <remarks>Traits are new Trait(def, degree). incapableOf swaps in a childhood that disables those work tags.</remarks>
     public static Pawn Colonist(string name, IntVec3? at = null, HarnessRoom inside = null, IEnumerable<WorkTypeDef> work = null,
-        IEnumerable<string> traits = null, bool onlyWork = true, string kind = "Colonist", WorkTags incapableOf = WorkTags.None)
-    {
-        var cell = at ?? inside?.Center ?? World.Center;
-        var workObject = new JsonObject();
-        foreach (var workType in work ?? Enumerable.Empty<WorkTypeDef>())
+        IEnumerable<Trait> traits = null, bool onlyWork = true, PawnKindDef kind = null, WorkTags incapableOf = WorkTags.None) =>
+        SpawnPawnCommand.Generate(World.Map, new ColonistPlan(at ?? inside?.Center ?? World.Center)
         {
-            workObject[workType.defName] = 1;
-        }
-
-        var result = Script.CommandNow("spawnPawn", new JsonObject
-        {
-            ["name"] = name,
-            ["cell"] = new JsonArray(cell.x, cell.z),
-            ["kind"] = kind,
-            ["work"] = workObject,
-            ["onlyWork"] = onlyWork,
-            ["traits"] = new JsonArray((traits ?? Enumerable.Empty<string>()).Select(t => (JsonNode)t).ToArray()),
-            ["incapableOf"] = new JsonArray(Enum.GetValues<WorkTags>()
-                .Where(tag => tag != WorkTags.None && IsSingleFlag(tag) && incapableOf.HasFlag(tag))
-                .Select(tag => (JsonNode)tag.ToString())
-                .ToArray()),
+            Nickname = name,
+            Kind = kind ?? PawnKindDefOf.Colonist,
+            Work = (work ?? []).ToDictionary(workType => workType, _ => 1),
+            OnlyWork = onlyWork,
+            Traits = (traits ?? []).ToList(),
+            IncapableOf = incapableOf,
         });
-        return World.Pawn(result!["id"]!.GetValue<string>());
-    }
 
-    private static bool IsSingleFlag(WorkTags tag) => ((int)tag & ((int)tag - 1)) == 0;
+    /// <summary>Places a new thing on or near the cell; without stuff, a thing made from stuff uses the def's default.</summary>
+    public static Thing Thing(ThingDef def, IntVec3 at, int count = 1, ThingDef stuff = null, QualityCategory? quality = null) =>
+        SpawnThingCommand.Place(ThingFactory.Make(def, stuff, quality), at, World.Map, count);
 
-    public static Thing Thing(string def, IntVec3 at, int count = 1, string stuff = null)
-    {
-        var arguments = new JsonObject { ["def"] = def, ["cell"] = new JsonArray(at.x, at.z), ["count"] = count };
-        if (stuff != null)
-        {
-            arguments["stuff"] = stuff;
-        }
-
-        var id = Script.CommandNow("spawnThing", arguments)!["id"]!.GetValue<string>();
-        return World.Map.listerThings.AllThings.First(t => t.ThingID == id);
-    }
-
-    public static bool Filth(string def, IntVec3 at, int thickness = 1) =>
-        Script.CommandNow("spawnFilth", new JsonObject
-        {
-            ["def"] = def,
-            ["cells"] = new JsonArray(new JsonArray(at.x, at.z)),
-            ["thickness"] = thickness,
-        })!["spawned"]!.GetValue<int>() == 1;
+    /// <summary>Makes filth on the cell, or thickens filth already there; null when the cell takes no filth.</summary>
+    public static Filth Filth(ThingDef def, IntVec3 at, int thickness = 1) =>
+        SpawnFilthCommand.Spawn(World.Map, def, [at], thickness).FirstOrDefault();
 }

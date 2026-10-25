@@ -16,59 +16,17 @@ public static class SpawnPawnCommand
     public static CommandResult Run(JsonObject args)
     {
         var map = Arguments.CurrentMap();
-        var cell = Arguments.Cell(args, "cell", map);
-        var kind = Arguments.Def<PawnKindDef>(Arguments.String(args, "kind", "Colonist"));
-        var work = args["work"] as JsonObject ?? new JsonObject();
-        var workTypes = work.Select(entry => Arguments.Def<WorkTypeDef>(entry.Key)).ToList();
-
-        Pawn pawn = null;
-        for (var attempt = 0; attempt < GenerationAttempts && pawn == null; attempt++)
+        var pawn = Generate(map, new ColonistPlan(Arguments.Cell(args, "cell", map))
         {
-            var candidate = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
-                kind, Faction.OfPlayer, forceGenerateNewPawn: true,
-                canGeneratePawnRelations: false, allowAddictions: false));
-            if (workTypes.All(w => !candidate.WorkTypeIsDisabled(w)))
-            {
-                pawn = candidate;
-            }
-        }
-
-        if (pawn == null)
-        {
-            throw new HarnessException($"No {kind.defName} able to do {string.Join(", ", workTypes)} in {GenerationAttempts} attempts.");
-        }
-
-        var nickname = Arguments.String(args, "name");
-        if (nickname != null && pawn.Name is NameTriple full)
-        {
-            pawn.Name = new NameTriple(full.First, nickname, full.Last);
-        }
-
-        foreach (var traitName in Arguments.Strings(args, "traits"))
-        {
-            GainTrait(pawn, traitName);
-        }
-
-        if (args["skills"] is JsonObject skills)
-        {
-            foreach (var (skillName, level) in skills)
-            {
-                pawn.skills.GetSkill(Arguments.Def<SkillDef>(skillName)).Level = (int)Arguments.Number(level!);
-            }
-        }
-
-        var incapableOf = Arguments.Strings(args, "incapableOf")
-            .Aggregate(WorkTags.None, (tags, name) => tags | Enum.Parse<WorkTags>(name, ignoreCase: true));
-        if (incapableOf != WorkTags.None)
-        {
-            MakeIncapableOf(pawn, incapableOf, workTypes);
-        }
-
-        GenSpawn.Spawn(pawn, cell, map);
-        if (work.Count > 0)
-        {
-            SetWorkCommand.Apply(pawn, work, Arguments.Bool(args, "onlyWork", false));
-        }
+            Nickname = Arguments.String(args, "name"),
+            Kind = Arguments.Def<PawnKindDef>(Arguments.String(args, "kind", PawnKindDefOf.Colonist.defName)),
+            Work = Levels<WorkTypeDef>(args["work"]),
+            OnlyWork = Arguments.Bool(args, "onlyWork", false),
+            Traits = Arguments.Strings(args, "traits").Select(ParseTrait).ToList(),
+            Skills = Levels<SkillDef>(args["skills"]),
+            IncapableOf = Arguments.Strings(args, "incapableOf")
+                .Aggregate(WorkTags.None, (tags, name) => tags | Enum.Parse<WorkTags>(name, ignoreCase: true)),
+        });
 
         return CommandResult.Done(new JsonObject
         {
@@ -78,6 +36,69 @@ public static class SpawnPawnCommand
             ["incapableOf"] = pawn.CombinedDisabledWorkTags.ToString(),
             ["traits"] = new JsonArray(pawn.story.traits.allTraits.Select(t => (JsonNode)t.def.defName).ToArray()),
         });
+    }
+
+    /// <summary>Generates and spawns the colonist, retrying until it can do every requested work type.</summary>
+    public static Pawn Generate(Map map, ColonistPlan plan)
+    {
+        var workTypes = plan.Work.Keys.ToList();
+        Pawn pawn = null;
+        for (var attempt = 0; attempt < GenerationAttempts && pawn == null; attempt++)
+        {
+            var candidate = PawnGenerator.GeneratePawn(new PawnGenerationRequest(
+                plan.Kind, Faction.OfPlayer, forceGenerateNewPawn: true,
+                canGeneratePawnRelations: false, allowAddictions: false));
+            if (workTypes.All(w => !candidate.WorkTypeIsDisabled(w)))
+            {
+                pawn = candidate;
+            }
+        }
+
+        if (pawn == null)
+        {
+            throw new HarnessException($"No {plan.Kind.defName} able to do {string.Join(", ", workTypes)} in {GenerationAttempts} attempts.");
+        }
+
+        if (plan.Nickname != null && pawn.Name is NameTriple full)
+        {
+            pawn.Name = new NameTriple(full.First, plan.Nickname, full.Last);
+        }
+
+        foreach (var trait in plan.Traits)
+        {
+            GainTrait(pawn, trait.def, trait.Degree);
+        }
+
+        foreach (var (skill, level) in plan.Skills)
+        {
+            pawn.skills.GetSkill(skill).Level = level;
+        }
+
+        if (plan.IncapableOf != WorkTags.None)
+        {
+            MakeIncapableOf(pawn, plan.IncapableOf, workTypes);
+        }
+
+        GenSpawn.Spawn(pawn, plan.Cell, map);
+        if (plan.Work.Count > 0)
+        {
+            SetWorkCommand.Apply(pawn, plan.Work, plan.OnlyWork);
+        }
+
+        return pawn;
+    }
+
+    /// <summary>Reads {"defName": number} into defs and numbers.</summary>
+    private static Dictionary<T, int> Levels<T>(JsonNode node) where T : Def =>
+        (node as JsonObject ?? new JsonObject())
+        .ToDictionary(entry => Arguments.Def<T>(entry.Key), entry => (int)Arguments.Number(entry.Value!));
+
+    /// <summary>Reads "defName" or "defName:degree"; without a degree, the trait's first degree.</summary>
+    private static Trait ParseTrait(string traitName)
+    {
+        var parts = traitName.Split(':');
+        var def = Arguments.Def<TraitDef>(parts[0]);
+        return new Trait(def, parts.Length > 1 ? int.Parse(parts[1]) : def.degreeDatas.First().degree);
     }
 
     /// <summary>Swaps in one childhood that disables every requested tag without disabling the requested work.</summary>
@@ -96,12 +117,15 @@ public static class SpawnPawnCommand
         pawn.Notify_DisabledWorkTypesChanged();
     }
 
-    /// <summary>Adds a trait as "defName" or "defName:degree", dropping traits it conflicts with.</summary>
-    private static void GainTrait(Pawn pawn, string traitName)
+    /// <summary>Adds a new forced trait of that def and degree, dropping traits it conflicts with.</summary>
+    private static void GainTrait(Pawn pawn, TraitDef def, int degree)
     {
-        var parts = traitName.Split(':');
-        var def = Arguments.Def<TraitDef>(parts[0]);
-        var degree = parts.Length > 1 ? int.Parse(parts[1]) : def.degreeDatas.First().degree;
+        if (def.degreeDatas.All(d => d.degree != degree))
+        {
+            throw new HarnessException(
+                $"{def.defName} has no degree {degree}. Use one of {string.Join(", ", def.degreeDatas.Select(d => d.degree))}.");
+        }
+
         foreach (var existing in pawn.story.traits.allTraits.Where(t => t.def == def || t.def.ConflictsWith(def)).ToList())
         {
             pawn.story.traits.RemoveTrait(existing);

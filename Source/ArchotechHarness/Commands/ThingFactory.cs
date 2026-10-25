@@ -5,21 +5,22 @@ using Verse;
 
 namespace ArchotechHarness.Commands;
 
-/// <summary>Makes a thing from "def", "stuff" and "quality" arguments.</summary>
+/// <summary>Makes a thing from a def, stuff and quality, or from "def", "stuff" and "quality" arguments.</summary>
 public static class ThingFactory
 {
-    public static Thing Make(JsonObject args)
+    public static Thing Make(JsonObject args) =>
+        Make(
+            Arguments.Def<ThingDef>(Arguments.RequiredString(args, "def")),
+            Arguments.String(args, "stuff") is { } stuff ? Arguments.Def<ThingDef>(stuff) : null,
+            Arguments.String(args, "quality") is { } quality ? Enum.Parse<QualityCategory>(quality, ignoreCase: true) : null);
+
+    /// <summary>Without stuff, a thing made from stuff uses the def's default stuff.</summary>
+    public static Thing Make(ThingDef def, ThingDef stuff = null, QualityCategory? quality = null)
     {
-        var def = Arguments.Def<ThingDef>(Arguments.RequiredString(args, "def"));
-        var stuffName = Arguments.String(args, "stuff");
-        var stuff = def.MadeFromStuff
-            ? stuffName != null ? Arguments.Def<ThingDef>(stuffName) : GenStuff.DefaultStuffFor(def)
-            : null;
-        var thing = ThingMaker.MakeThing(def, stuff);
-        var quality = Arguments.String(args, "quality");
-        if (quality != null)
+        var thing = ThingMaker.MakeThing(def, def.MadeFromStuff ? stuff ?? GenStuff.DefaultStuffFor(def) : null);
+        if (quality is { } category)
         {
-            thing.TryGetComp<CompQuality>()?.SetQuality(Enum.Parse<QualityCategory>(quality, ignoreCase: true), ArtGenerationContext.Colony);
+            thing.TryGetComp<CompQuality>()?.SetQuality(category, ArtGenerationContext.Colony);
         }
 
         return thing;

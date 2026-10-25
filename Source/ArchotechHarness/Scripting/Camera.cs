@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+using ArchotechHarness.Commands;
 using Verse;
 
 namespace ArchotechHarness.Scripting;
@@ -8,13 +8,18 @@ public static class Camera
 {
     public const float Close = 11f;
 
-    public static void Look(IntVec3 cell, float zoom = 13f) =>
-        Script.CommandNow("camera", new JsonObject { ["cell"] = new JsonArray(cell.x, cell.z), ["zoom"] = zoom });
+    public static void Look(IntVec3 cell, float zoom = 13f) => CameraCommand.Look(cell, zoom);
 
     /// <summary>Centres on a room, zoomed so the whole room fits.</summary>
     public static void Frame(HarnessRoom room) =>
         Look(room.Center, System.Math.Max(Close, System.Math.Max(room.Bounds.Width, room.Bounds.Height) * 0.75f + 4f));
 
-    public static void Follow(Pawn pawn, float zoom = 13f, bool select = true) =>
-        Script.CommandNow("camera", new JsonObject { ["pawn"] = pawn.ThingID, ["zoom"] = zoom, ["select"] = select });
+    public static void Follow(Pawn pawn, float zoom = 13f, bool select = true)
+    {
+        CameraCommand.Look(pawn.Position, zoom);
+        if (select)
+        {
+            CameraCommand.Select(pawn);
+        }
+    }
 }

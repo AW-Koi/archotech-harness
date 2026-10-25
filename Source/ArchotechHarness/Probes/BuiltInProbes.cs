@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using ArchotechHarness.Commands;
 using ArchotechHarness.Scripting;
+using RimWorld;
 using Verse;
 
 namespace ArchotechHarness.Probes;
@@ -71,7 +72,7 @@ public static class BuiltInProbes
     /// <summary>The pawn's memory thoughts, optionally only "def": def, mood offset and the other pawn for social memories.</summary>
     private static JsonNode Thoughts(JsonObject args)
     {
-        var memories = Arguments.Pawn(args).Memories(Arguments.String(args, "def"));
+        var memories = Arguments.Pawn(args).Memories(Arguments.String(args, "def") is { } def ? Arguments.Def<ThoughtDef>(def) : null);
         return new JsonObject
         {
             ["has"] = memories.Count > 0,

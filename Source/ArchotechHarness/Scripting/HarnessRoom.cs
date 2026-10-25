@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System.Text.Json.Nodes;
+using ArchotechHarness.Commands;
 using RimWorld;
 using Verse;
 
@@ -14,17 +14,12 @@ public sealed class HarnessRoom(CellRect bounds)
 
     public IntVec3 Center => Bounds.CenterCell;
 
-    public IReadOnlyList<Filth> Filth(params string[] defs) => World.Filth(Interior, defs);
+    /// <summary>Filth on the floor, optionally only of the given filth ThingDefs.</summary>
+    public IReadOnlyList<Filth> Filth(params ThingDef[] defs) => World.Filth(Interior, defs);
 
-    /// <summary>Spreads filth over random floor cells; the same seed gives the same cells.</summary>
-    public int Scatter(string filthDef, int count, int seed = 1) =>
-        Script.CommandNow("spawnFilth", new JsonObject
-        {
-            ["def"] = filthDef,
-            ["rect"] = new JsonArray(Interior.minX, Interior.minZ, Interior.Width, Interior.Height),
-            ["count"] = count,
-            ["seed"] = seed,
-        })!["spawned"]!.GetValue<int>();
+    /// <summary>Spreads filth over random floor cells and returns it; the same seed gives the same cells.</summary>
+    public IReadOnlyList<Filth> Scatter(ThingDef filth, int count, int seed = 1) =>
+        SpawnFilthCommand.Spawn(World.Map, filth, SpawnFilthCommand.PickCells(World.Map, Interior, count, seed));
 
     public bool Contains(Thing thing) => Bounds.Contains(thing.Position);
 }

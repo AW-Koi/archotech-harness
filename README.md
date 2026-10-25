@@ -58,24 +58,41 @@ public sealed class MopsTheFloor : HarnessScenario
 {
     public override async Task Run()
     {
-        var room = Build.Room(World.Center, width: 11, height: 9, floor: "WoodPlankFloor", door: Rot4.South);
+        var room = Build.Room(World.Center, width: 11, height: 9, floor: TerrainDefOf.WoodPlankFloor, door: Rot4.South);
         var cleaner = Spawn.Colonist("Cleaner", inside: room, work: [WorkTypeDefOf.Cleaning]);
-        cleaner.Equip("MyMod_Mop");
+        cleaner.Equip(MyModDefOf.MyMod_Mop, stuff: ThingDefOf.WoodLog);
         Colonists.RemoveAllExcept(cleaner);
 
-        room.Scatter("Filth_Blood", 12);
+        room.Scatter(ThingDefOf.Filth_Blood, 12);
         var before = room.Filth().Count;
         await Shot("before");
 
         Clock.Speed = TimeSpeed.Superfast;
         await Until(() => room.Filth().Count < before);
-        Check(cleaner.CurrentJob() == "Clean");
+        Check(cleaner.CurrentJob() == JobDefOf.Clean);
         await Shot("after");
     }
 }
 ```
 
 The game is paused before `Run()` starts, so the quick-test colonists stand still until your scenario sets a speed. Remove them with `Colonists.RemoveAllExcept` before you unpause, or they may walk filth into your rooms.
+
+### Defs
+
+Scenarios pass defs as typed objects, never as defName strings. Use RimWorld's DefOf classes (`ThingDefOf`, `TerrainDefOf`, `JobDefOf`, `WorkTypeDefOf`, `TraitDefOf`, `ThoughtDefOf`, `PawnKindDefOf` and so on) and your mod's own. For a def that no DefOf class covers, declare your own `[DefOf]` class in the scenarios project:
+
+```csharp
+[DefOf]
+public static class CleaningDefOf
+{
+    public static ThingDef Filth_Sand;
+
+    [DefAlias("Filth_SpentAcid")]
+    public static ThingDef SpentAcid;
+}
+```
+
+RimWorld binds DefOf fields only at startup, so the harness binds the `[DefOf]` classes in a scenarios assembly when it loads it. Each field takes the def named after it, or the name in `[DefAlias]`. If a def doesn't exist, the run fails before `Run()` starts and names the field. Mark a field from a DLC or another mod with `[MayRequire("packageId")]` to leave it null when that mod isn't active. `scenarios/CleaningDefOf.cs` is a working example.
 
 `archo run FILE.cs` reads the class's attributes, builds the listed mods, then builds the scenarios project that holds the file. A build error is reported before the game starts. A runtime error is reported with the scenario file and line it came from.
 
@@ -127,14 +144,14 @@ Open a folder, not a single file, so C# Dev Kit loads the project. For this repo
 | Member | Does |
 | --- | --- |
 | `World.Map`, `World.Center` | The current map and its centre cell. |
-| `World.Filth(area, defs)`, `World.Things(def, area)`, `World.Pawn(name)` | Queries the map. |
-| `Build.Room(center, width, height, floor, wall, stuff, door, roof)` | Clears the area, builds a finished walled room and removes any filth inside it. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(defs)` and `Scatter(def, count, seed)`. |
-| `Spawn.Colonist(name, at, inside, work, traits, onlyWork, kind, incapableOf)` | Generates a colonist able to do `work` (WorkTypeDefs); with `onlyWork`, all other work is off. Traits are `"Def"` or `"Def:degree"`. `incapableOf` (WorkTags) swaps in a childhood that disables those tags. |
-| `Spawn.Thing(def, at, count, stuff)`, `Spawn.Filth(def, at)` | Places things. |
-| `pawn.Equip(def, stuff, quality)`, `pawn.SetWork(workType, priority)`, `pawn.CurrentJob()` | Pawn shortcuts. |
-| `pawn.Memories(thoughtDef)`, `pawn.HasThought(thoughtDef)` | The pawn's memory thoughts. |
+| `World.Filth(area, filthDefs)`, `World.Things(thingDef, area)`, `World.Pawn(name)` | Queries the map. Returns `Filth`, `Thing` and `Pawn` objects. |
+| `Build.Room(center, width, height, floor, wall, stuff, door, roof)` | Clears the area, builds a finished walled room and removes any filth inside it. `floor` is a `TerrainDef`; `wall` (default `ThingDefOf.Wall`) and `stuff` (default `ThingDefOf.WoodLog`) are `ThingDef`s. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(filthDefs)` and `Scatter(filthDef, count, seed)`, which returns the `Filth` it made. |
+| `Spawn.Colonist(name, at, inside, work, traits, onlyWork, kind, incapableOf)` | Generates a colonist able to do `work` (`WorkTypeDef`s); with `onlyWork`, all other work is off. Traits are `new Trait(TraitDefOf.Industriousness, degree: 1)`. `kind` is a `PawnKindDef` (default `PawnKindDefOf.Colonist`). `incapableOf` (`WorkTags`) swaps in a childhood that disables those tags. Returns the `Pawn`. |
+| `Spawn.Thing(thingDef, at, count, stuff, quality)`, `Spawn.Filth(filthDef, at, thickness)` | Places a thing and returns it, or makes filth and returns the `Filth` (null when the cell takes none). |
+| `pawn.Equip(thingDef, stuff, quality)`, `pawn.SetWork(workTypeDef, priority)`, `pawn.CurrentJob()` | Pawn shortcuts. `Equip` returns the new `Thing`; `CurrentJob` returns the `JobDef`, or null when idle. |
+| `pawn.Memories(thoughtDef)`, `pawn.HasThought(thoughtDef)` | The pawn's `Thought_Memory` list, optionally of one `ThoughtDef`. |
 | `pawn.FloatMenuAt(cell)` | The right-click options the pawn gets at a cell, as `FloatMenuOption`s. |
-| `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. |
+| `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. `RemoveAllExcept` returns the pawns it removed. |
 | `Camera.Look(cell, zoom)`, `Camera.Frame(room)`, `Camera.Follow(pawn)` | Points the camera. |
 | `Clock.Speed`, `Clock.Tick` | Game speed and tick. A speed set here holds until changed. |
 | `await Until(() => condition, timeoutSeconds)` | Waits, checking once per frame. Throws `TimeoutException` on timeout. |
@@ -143,7 +160,7 @@ Open a folder, not a single file, so C# Dev Kit loads the project. For this repo
 | `Check(condition)` | Records a check; a failed check fails the run, and the scenario carries on. |
 | `Require(condition)` | Records a check and stops the scenario if it fails. |
 | `Note(key, value)` | Adds a value to the report. |
-| `await Command(name, args)` | Runs any harness command below. |
+| `await Command(name, args)` | Runs any harness command below, with JSON arguments. Scenarios rarely need it. |
 
 The report lists `passed`, `checks` (with the source text of each condition), `notes`, `shots`, `gameErrors` logged during the run, and on failure the `error` with the scenario lines in `at`.
 
@@ -181,7 +198,7 @@ DLC names are `royalty`, `ideology`, `biotech`, `anomaly` and `odyssey`. A mod d
 
 ## Harness commands
 
-Send them with `archo send`, or call them from a scenario with `await Command(name, args)`. Cells are `[x, z]` or `"center"`. Rectangles are `[x, z, width, height]`. The quick-test map is 250 by 250 cells.
+Send them with `archo send`. A scenario can call one with `await Command(name, args)`, but the typed scenario API covers the same ground. Cells are `[x, z]` or `"center"`. Rectangles are `[x, z, width, height]`. The quick-test map is 250 by 250 cells.
 
 | Command | Arguments | Result |
 | --- | --- | --- |
@@ -224,7 +241,7 @@ Add a class named `ArchotechProbes` to your mod. You don't need a reference to t
 public static class ArchotechProbes
 {
     public static int MopsOnMap() =>
-        Find.CurrentMap.listerThings.ThingsOfDef(ThingDef.Named("MyMod_Mop")).Count;
+        Find.CurrentMap.listerThings.ThingsOfDef(MyModDefOf.MyMod_Mop).Count;
 }
 ```
 
@@ -240,10 +257,10 @@ The watchdog titles the game window "Archotech Harness" and gives it `art/Archot
 
 ```sh
 dotnet build ArchotechHarness.sln
-dotnet test Source/ArchotechHarness.Cli.Tests
+dotnet test ArchotechHarness.sln
 ```
 
-The mod and scenarios reference the game's `Assembly-CSharp.dll`, `UnityStubs.dll` and `Waylith.dll` from the RimWorld install that `build/FindRimWorld.props` finds. This repo contains none of the game's files.
+The mod, its tests and the scenarios reference the game's `Assembly-CSharp.dll`, `UnityStubs.dll` and `Waylith.dll` from the RimWorld install that `build/FindRimWorld.props` finds. This repo contains none of the game's files.
 
 ## Icons
 
