@@ -31,7 +31,7 @@ Nobody pushes to `main` directly.
 | Scenarios props | `build/ArchotechScenarios.props` | Turns a .csproj into a scenarios project. |
 | Shared | `Source/Shared` | Code compiled into both the CLI and the mod. |
 
-`archo` keeps per-checkout state, such as profiles, run folders and reports, in `.harness/`. It keeps machine-wide state in `%LOCALAPPDATA%/ArchotechHarness` (or `ARCHO_STATE`): live sessions, the player-file backup, the list of Mods-folder junctions and a lock. The first game takes the backup and the last one restores it.
+`archo` keeps per-checkout state in `.harness/`: one profile per game (`profile/`, `profiles/w1`...), run folders (`runs/`, `test-runs/`) and the last session's `Player.log`. `RunRetention` prunes the run folders before each run. Profiles hold RimWorld's texture cache, and later games reuse them. It keeps machine-wide state in `%LOCALAPPDATA%/ArchotechHarness` (or `ARCHO_STATE`): live sessions, the player-file backup, the list of Mods-folder junctions and a lock. The first game takes the backup and the last one restores it.
 
 ## Game launch
 

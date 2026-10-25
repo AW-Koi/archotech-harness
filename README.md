@@ -155,8 +155,11 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 | `archo status` | Lists your running games. |
 | `archo stop` | Closes your games and restores your files. |
 | `archo restore` | Restores your files after an interrupted run. |
+| `archo clean` | Deletes old run folders now. `--keep N` and `--max-mb N` override the limits below; `--dry-run` lists what it would delete. |
 
 Add `--wait` to `run` or `test` to wait for another game to close instead of stopping with an error. `archo test` exits with code 0 only when every scenario passed.
+
+Before each `run` or `test`, `archo` deletes the oldest folders in `.harness/runs/` and `.harness/test-runs/`. It keeps the 20 newest in each, up to 1024 MB per folder, and always the newest one. Set `ARCHO_KEEP_RUNS` (a number, or `all`) and `ARCHO_KEEP_MB` (`0` for no cap) to change that. It skips this while a game from this checkout is running, and never touches folders you write elsewhere with `--out`.
 
 ## Reference
 
