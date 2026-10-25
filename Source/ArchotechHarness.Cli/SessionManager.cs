@@ -1,34 +1,53 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json.Nodes;
 
 namespace ArchotechHarness.Cli;
 
-/// <summary>Starts and ends harness sessions, and always restores the player's files afterwards.</summary>
-/// <remarks>A detached watchdog restores the files if this process dies while the game runs.</remarks>
+/// <summary>Starts and ends harness sessions, one game each, and restores the player's files once the last one ends.</summary>
+/// <remarks>The first session backs the files up and the last one restores them; a detached watchdog per session covers crashes.</remarks>
 public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
 {
+    public const string MainSessionId = "main";
+    public const int FirstPort = 47801;
+
     private static readonly TimeSpan HarnessStartTimeout = TimeSpan.FromMinutes(4);
     private static readonly TimeSpan MapLoadTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan QuitTimeout = TimeSpan.FromSeconds(60);
 
-    public SessionState? Current => SessionState.Load(paths.SessionFile);
+    public SessionState? Current => SessionState.Load(paths.SessionFile(MainSessionId)) ?? Sessions.FirstOrDefault();
 
-    /// <summary>Throws a clear message when another archo session, or any RimWorld, is running.</summary>
-    public void ThrowIfBusy()
+    /// <summary>This checkout's sessions.</summary>
+    public IReadOnlyList<SessionState> Sessions => MachineSessions.Where(Mine).ToList();
+
+    /// <summary>Every archo session on the machine, whichever checkout started it.</summary>
+    public IReadOnlyList<SessionState> MachineSessions =>
+        Directory.Exists(paths.SessionsDirectory)
+            ? Directory.EnumerateFiles(paths.SessionsDirectory, "*.json").Select(SessionState.Load).OfType<SessionState>().ToList()
+            : [];
+
+    public SessionState? Find(string id) => SessionState.Load(paths.SessionFile(id));
+
+    /// <summary>Throws a clear message when another archo session, or a RimWorld outside archo, is running.</summary>
+    public void ThrowIfBusy(IReadOnlyCollection<string>? ownSessions = null)
     {
-        RecoverStaleSession();
-        if (Current is { } other)
+        RecoverStaleSessions();
+        var others = MachineSessions.Where(s => !Mine(s) || ownSessions?.Contains(s.Id) != true).ToList();
+        if (others.Count > 0)
         {
+            var other = others[0];
+            var where = Mine(other) ? "this checkout" : other.Home;
             throw new SessionBusyException(
-                $"Another archo session is running (game pid {other.GameProcessId}, started {other.StartedUtc.ToLocalTime():HH:mm:ss}). " +
-                "Wait for it to finish (or pass --wait), attach to it with --attach, or run 'archo stop' if it is yours.");
+                $"Another archo session is running ({others.Count} game(s); '{other.Id}' from {where} has pid {other.GameProcessId}, started {other.StartedUtc.ToLocalTime():HH:mm:ss}). " +
+                "Wait for it to finish (or pass --wait), attach to it with --attach, or run 'archo stop' there if it is yours.");
         }
 
-        var running = Process.GetProcessesByName("RimWorld");
-        if (running.Length > 0)
+        var ours = MachineSessions.Select(s => s.GameProcessId).ToHashSet();
+        if (Process.GetProcessesByName("RimWorld").FirstOrDefault(p => !ours.Contains(p.Id)) is { } stranger)
         {
             throw new SessionBusyException(
-                $"RimWorld is already running (pid {running[0].Id}) outside archo. Archo will not touch a game you may be playing; close it first.");
+                $"RimWorld is already running (pid {stranger.Id}) outside archo. Archo will not touch a game you may be playing; close it first.");
         }
     }
 
@@ -51,9 +70,15 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
         }
     }
 
-    public SessionState Start(LaunchOptions options)
+    public SessionState Start(LaunchOptions options) => Start(options, MainSessionId, checkBusy: true);
+
+    /// <summary>Starts a game for a session id; a worker pool passes checkBusy false for its own later workers.</summary>
+    public SessionState Start(LaunchOptions options, string id, bool checkBusy)
     {
-        ThrowIfBusy();
+        if (checkBusy)
+        {
+            ThrowIfBusy();
+        }
 
         foreach (var mod in options.Mods.Where(m => m.Build != null))
         {
@@ -61,57 +86,87 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
         }
 
         var packageIds = options.Mods.Select(m => ModFolder.ReadPackageId(m.Directory)).ToList();
-        var guard = new PlayerConfigGuard(paths.PlayerDataDirectory, paths.BackupDirectory);
-        guard.Backup();
-        var junctions = new List<string>();
-        try
+        SessionState session;
+        Process game;
+        using (AcquireLock())
         {
-            EnsureInstalled(paths.HarnessModDirectory, junctions);
-            foreach (var mod in options.Mods)
+            var guard = new PlayerConfigGuard(paths.PlayerDataDirectory, paths.BackupDirectory);
+            if (!guard.HasBackup)
             {
-                EnsureInstalled(mod.Directory, junctions);
+                guard.Backup();
             }
 
-            var config = Path.Combine(paths.ProfileDirectory, "Config");
+            EnsureInstalled(paths.HarnessModDirectory);
+            foreach (var mod in options.Mods)
+            {
+                EnsureInstalled(mod.Directory);
+            }
+
+            var profile = paths.ProfileDirectory(id);
+            var config = Path.Combine(profile, "Config");
             ProfileFiles.WriteModsConfig(Path.Combine(config, "ModsConfig.xml"), ModProfile.LoadOrder(options.Dlcs, packageIds), paths.GameVersion);
             ProfileFiles.WritePrefs(Path.Combine(config, "Prefs.xml"), options.Window);
 
-            var game = Process.Start(new ProcessStartInfo(paths.GameExecutable)
+            var port = options.Port > 0 ? options.Port : FreePort();
+            var arguments = new List<string>
+            {
+                "-quicktest", $"\"-savedatafolder={profile}\"", $"-WindowSize={options.Window.Width},{options.Window.Height}",
+                $"-harnessPort={port}", "-NoCrashDialog", "-DisableLogStackTraces",
+            };
+            if (options.Hidden)
+            {
+                arguments.AddRange(["-NoWindow", "-NoFileLog"]);
+            }
+
+            game = Process.Start(new ProcessStartInfo(paths.GameExecutable)
             {
                 WorkingDirectory = paths.GameDirectory,
                 UseShellExecute = true,
-                Arguments = string.Join(' ',
-                    "-quicktest",
-                    $"\"-savedatafolder={paths.ProfileDirectory}\"",
-                    $"-WindowSize={options.Window.Width},{options.Window.Height}",
-                    $"-harnessPort={options.Port}",
-                    "-NoCrashDialog",
-                    "-DisableLogStackTraces"),
+                Arguments = string.Join(' ', arguments),
             }) ?? throw new ScenarioException("RimWorld did not start.");
+            session = new SessionState(id, paths.Home, game.Id, port, DateTime.UtcNow);
+            session.Save(paths.SessionFile(id));
+        }
 
-            var session = new SessionState(game.Id, options.Port, DateTime.UtcNow, junctions);
-            session.Save(paths.SessionFile);
-            StartWatchdog();
-            progress.WriteLine($"Started RimWorld (pid {game.Id}); waiting for the harness on port {options.Port}.");
+        try
+        {
+            StartWatchdog(id);
+            progress.WriteLine($"Started RimWorld for session '{id}' (pid {game.Id}); waiting for the harness on port {session.Port}.");
             WaitForMap(session, game);
             return session;
         }
         catch
         {
-            if (Current == null)
+            if (!game.HasExited)
             {
-                junctions.ForEach(Junctions.Remove);
+                game.Kill();
+                game.WaitForExit();
             }
 
-            Finish();
+            Finish(id);
             throw;
         }
     }
 
-    /// <summary>Asks the game to quit, closes or kills it if it does not, then restores the player's files.</summary>
-    public RestoreReport? Stop()
+    /// <summary>Stops every session and returns the restore report of the last one to end.</summary>
+    public RestoreReport? StopAll()
     {
-        var session = Current;
+        RestoreReport? report = null;
+        foreach (var session in Sessions)
+        {
+            report = Stop(session.Id) ?? report;
+        }
+
+        return report ?? Finish();
+    }
+
+    public RestoreReport? Stop() => StopAll();
+
+    /// <summary>Asks one game to quit, closes or kills it if it does not, then ends its session.</summary>
+    /// <remarks>Returns the restore report when this was the last session, otherwise null.</remarks>
+    public RestoreReport? Stop(string id)
+    {
+        var session = Find(id);
         if (session == null)
         {
             return null;
@@ -124,128 +179,71 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
             {
                 new HarnessClient(session.Port).Send("quit");
             }
-            catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException)
+            catch (Exception e) when (e is IOException or SocketException)
             {
                 game.CloseMainWindow();
             }
 
             if (!game.WaitForExit(QuitTimeout))
             {
-                progress.WriteLine("RimWorld did not quit in time; killing it.");
+                progress.WriteLine($"RimWorld for session '{id}' did not quit in time; killing it.");
                 game.Kill();
                 game.WaitForExit();
             }
         }
 
-        return Finish();
+        return Finish(id);
     }
 
-    /// <summary>Restores the player's files and removes the junctions of a session whose game has exited.</summary>
-    public RestoreReport? Finish()
+    /// <summary>Ends a session whose game has exited; the last session to end restores the player's files and removes the junctions.</summary>
+    public RestoreReport? Finish(string id = MainSessionId)
     {
-        Directory.CreateDirectory(paths.SessionDirectory);
-        using var finishLock = AcquireLock();
-        var session = Current;
+        using var stateLock = AcquireLock();
+        var session = Find(id);
         if (session != null && TryGetProcess(session.GameProcessId) != null)
         {
             return null;
         }
 
-        session?.CreatedJunctions.ToList().ForEach(Junctions.Remove);
-        var guard = new PlayerConfigGuard(paths.PlayerDataDirectory, paths.BackupDirectory);
-        RestoreReport? report = null;
-        if (guard.HasBackup)
+        File.Delete(paths.SessionFile(id));
+        DeleteStaleSessionFiles();
+        if (MachineSessions.Count > 0)
         {
-            report = guard.Restore();
-            var log = Path.Combine(paths.BackupDirectory, PlayerConfigGuard.SessionLogFileName);
-            if (File.Exists(log))
-            {
-                Directory.CreateDirectory(paths.StateDirectory);
-                File.Copy(log, Path.Combine(paths.StateDirectory, "last-session-Player.log"), overwrite: true);
-            }
-
-            if (report.Verified)
-            {
-                Directory.Delete(paths.BackupDirectory, recursive: true);
-            }
+            return null;
         }
 
-        File.Delete(paths.SessionFile);
+        JunctionRegistry.Load(paths.JunctionsFile).ForEach(Junctions.Remove);
+        File.Delete(paths.JunctionsFile);
+        var guard = new PlayerConfigGuard(paths.PlayerDataDirectory, paths.BackupDirectory);
+        if (!guard.HasBackup)
+        {
+            return null;
+        }
+
+        var report = guard.Restore();
+        var log = Path.Combine(paths.BackupDirectory, PlayerConfigGuard.SessionLogFileName);
+        if (File.Exists(log))
+        {
+            File.Copy(log, Path.Combine(paths.StateDirectory, "last-session-Player.log"), overwrite: true);
+        }
+
+        if (report.Verified)
+        {
+            Directory.Delete(paths.BackupDirectory, recursive: true);
+        }
+
         return report;
     }
 
-    public void RunWatchdog()
+    public void RunWatchdog(string id)
     {
-        var session = Current;
-        if (session == null)
-        {
-            return;
-        }
-
-        if (TryGetProcess(session.GameProcessId) is { } game)
+        if (Find(id) is { } session && TryGetProcess(session.GameProcessId) is { } game)
         {
             using var branding = new WindowBranding(paths.WindowIcon);
             branding.Maintain(game);
         }
 
-        Finish();
-    }
-
-    private void RecoverStaleSession()
-    {
-        var session = Current;
-        if ((session != null && TryGetProcess(session.GameProcessId) == null)
-            || (session == null && new PlayerConfigGuard(paths.PlayerDataDirectory, paths.BackupDirectory).HasBackup))
-        {
-            progress.WriteLine("Found an unfinished session; restoring the player's files first.");
-            Finish();
-        }
-    }
-
-    private void WaitForMap(SessionState session, Process game)
-    {
-        var client = new HarnessClient(session.Port);
-        var deadline = DateTime.UtcNow + HarnessStartTimeout;
-        while (!client.TryPing())
-        {
-            ThrowIfGone(game, deadline, "the harness to start");
-            Thread.Sleep(500);
-        }
-
-        progress.WriteLine("Harness is up; waiting for the quick-test map.");
-        deadline = DateTime.UtcNow + MapLoadTimeout;
-        while (client.Send("status")["result"]?["playerHasControl"]?.GetValue<bool>() != true)
-        {
-            ThrowIfGone(game, deadline, "the map to load");
-            Thread.Sleep(500);
-        }
-    }
-
-    private static void ThrowIfGone(Process game, DateTime deadline, string what)
-    {
-        if (game.HasExited)
-        {
-            throw new ScenarioException($"RimWorld exited (code {game.ExitCode}) while waiting for {what}. See 'archo log'.");
-        }
-
-        if (DateTime.UtcNow > deadline)
-        {
-            throw new ScenarioException($"Timed out waiting for {what}. The game is still running; see 'archo log', then 'archo stop'.");
-        }
-    }
-
-    private void EnsureInstalled(string modDirectory, List<string> junctions)
-    {
-        var packageId = ModFolder.ReadPackageId(modDirectory);
-        if (ModFolder.FindInstalled(paths.ModsDirectory, packageId) != null)
-        {
-            return;
-        }
-
-        var link = Path.Combine(paths.ModsDirectory, "archo-" + packageId.Replace('.', '-'));
-        Junctions.Create(link, modDirectory);
-        junctions.Add(link);
-        progress.WriteLine($"Linked {modDirectory} into the Mods folder as {Path.GetFileName(link)}.");
+        Finish(id);
     }
 
     public void Build(BuildCommand build)
@@ -269,7 +267,129 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
         }
     }
 
-    private void StartWatchdog()
+    public JsonObject Describe()
+    {
+        var sessions = Sessions;
+        return new JsonObject
+        {
+            ["running"] = sessions.Any(s => TryGetProcess(s.GameProcessId) != null),
+            ["sessions"] = new JsonArray(sessions.Select(s => (JsonNode)new JsonObject
+            {
+                ["id"] = s.Id,
+                ["pid"] = s.GameProcessId,
+                ["port"] = s.Port,
+                ["startedUtc"] = s.StartedUtc,
+                ["running"] = TryGetProcess(s.GameProcessId) != null,
+            }).ToArray()),
+        };
+    }
+
+    private bool Mine(SessionState session) => string.Equals(session.Home, paths.Home, StringComparison.OrdinalIgnoreCase);
+
+    private void DeleteStaleSessionFiles()
+    {
+        foreach (var file in Directory.Exists(paths.SessionsDirectory) ? Directory.GetFiles(paths.SessionsDirectory, "*.json") : [])
+        {
+            if (SessionState.Load(file) is not { } session || TryGetProcess(session.GameProcessId) == null)
+            {
+                File.Delete(file);
+            }
+        }
+    }
+
+    private void RecoverStaleSessions()
+    {
+        var stale = MachineSessions.Where(s => TryGetProcess(s.GameProcessId) == null).ToList();
+        var orphanedBackup = MachineSessions.Count == 0 && new PlayerConfigGuard(paths.PlayerDataDirectory, paths.BackupDirectory).HasBackup;
+        if (stale.Count == 0 && !orphanedBackup)
+        {
+            return;
+        }
+
+        progress.WriteLine("Found an unfinished session; cleaning it up and restoring the player's files if it was the last.");
+        if (stale.Count > 0)
+        {
+            using (AcquireLock())
+            {
+                DeleteStaleSessionFiles();
+            }
+        }
+
+        Finish();
+    }
+
+    private void WaitForMap(SessionState session, Process game)
+    {
+        var client = new HarnessClient(session.Port);
+        var deadline = DateTime.UtcNow + HarnessStartTimeout;
+        while (!client.TryPing())
+        {
+            ThrowIfGone(game, deadline, "the harness to start");
+            Thread.Sleep(500);
+        }
+
+        progress.WriteLine($"Harness for session '{session.Id}' is up; waiting for the quick-test map.");
+        deadline = DateTime.UtcNow + MapLoadTimeout;
+        while (client.Send("status")["result"]?["playerHasControl"]?.GetValue<bool>() != true)
+        {
+            ThrowIfGone(game, deadline, "the map to load");
+            Thread.Sleep(500);
+        }
+    }
+
+    private static void ThrowIfGone(Process game, DateTime deadline, string what)
+    {
+        if (game.HasExited)
+        {
+            throw new ScenarioException($"RimWorld exited (code {game.ExitCode}) while waiting for {what}. See 'archo log'.");
+        }
+
+        if (DateTime.UtcNow > deadline)
+        {
+            throw new ScenarioException($"Timed out waiting for {what}.");
+        }
+    }
+
+    /// <summary>Links a mod into the Mods folder unless some folder there already holds its package id.</summary>
+    private void EnsureInstalled(string modDirectory)
+    {
+        var packageId = ModFolder.ReadPackageId(modDirectory);
+        if (ModFolder.FindInstalled(paths.ModsDirectory, packageId) != null)
+        {
+            return;
+        }
+
+        var link = Path.Combine(paths.ModsDirectory, "archo-" + packageId.Replace('.', '-'));
+        Junctions.Create(link, modDirectory);
+        JunctionRegistry.Add(paths.JunctionsFile, link);
+        progress.WriteLine($"Linked {modDirectory} into the Mods folder as {Path.GetFileName(link)}.");
+    }
+
+    private int FreePort()
+    {
+        var taken = MachineSessions.Select(s => s.Port).ToHashSet();
+        for (var port = FirstPort; ; port++)
+        {
+            if (taken.Contains(port))
+            {
+                continue;
+            }
+
+            try
+            {
+                var probe = new TcpListener(IPAddress.Loopback, port);
+                probe.Start();
+                probe.Stop();
+                return port;
+            }
+            catch (SocketException)
+            {
+                // The port is in use; try the next one.
+            }
+        }
+    }
+
+    private void StartWatchdog(string id)
     {
         var host = Environment.ProcessPath!;
         var start = new ProcessStartInfo(host) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden };
@@ -279,20 +399,23 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
         }
 
         start.ArgumentList.Add("watchdog");
+        start.ArgumentList.Add("--session");
+        start.ArgumentList.Add(id);
         Environment.SetEnvironmentVariable("ARCHO_HOME", paths.Home);
         Process.Start(start);
     }
 
     private FileStream AcquireLock()
     {
-        var path = Path.Combine(paths.SessionDirectory, "finish.lock");
+        Directory.CreateDirectory(paths.MachineStateDirectory);
+        var path = paths.LockFile;
         for (var attempt = 0; ; attempt++)
         {
             try
             {
                 return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             }
-            catch (IOException) when (attempt < 100)
+            catch (IOException) when (attempt < 600)
             {
                 Thread.Sleep(100);
             }
@@ -310,19 +433,5 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
         {
             return null;
         }
-    }
-
-    public JsonObject Describe()
-    {
-        var session = Current;
-        return session == null
-            ? new JsonObject { ["running"] = false }
-            : new JsonObject
-            {
-                ["running"] = TryGetProcess(session.GameProcessId) != null,
-                ["pid"] = session.GameProcessId,
-                ["port"] = session.Port,
-                ["startedUtc"] = session.StartedUtc,
-            };
     }
 }

@@ -30,18 +30,33 @@ public sealed class HarnessPaths
 
     public string StateDirectory => Path.Combine(Home, ".harness");
 
-    /// <summary>The isolated save data folder passed to the game with -savedatafolder.</summary>
-    public string ProfileDirectory => Path.Combine(StateDirectory, "profile");
+    /// <summary>State every archo checkout on this machine shares: live sessions, the player-file backup, junctions and the lock.</summary>
+    public string MachineStateDirectory { get; } =
+        Environment.GetEnvironmentVariable("ARCHO_STATE") is { Length: > 0 } fromEnv
+            ? fromEnv
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArchotechHarness");
 
-    public string SessionDirectory => Path.Combine(StateDirectory, "session");
+    public string SessionsDirectory => Path.Combine(MachineStateDirectory, "sessions");
 
-    public string SessionFile => Path.Combine(SessionDirectory, "session.json");
+    public string BackupDirectory => Path.Combine(MachineStateDirectory, "backup");
 
-    public string BackupDirectory => Path.Combine(SessionDirectory, "backup");
+    public string JunctionsFile => Path.Combine(MachineStateDirectory, "junctions.json");
+
+    public string LockFile => Path.Combine(MachineStateDirectory, "state.lock");
 
     public string RunsDirectory => Path.Combine(StateDirectory, "runs");
 
     public string PlayerLog => Path.Combine(PlayerDataDirectory, "Logs", "Player.log");
+
+    /// <summary>A session's registry file; ids carry the checkout, so two checkouts never share one.</summary>
+    public string SessionFile(string id) => Path.Combine(SessionsDirectory, $"{CheckoutKey}-{id}.json");
+
+    public string CheckoutKey => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes(Home.ToLowerInvariant())))[..12];
+
+    /// <summary>The isolated save data folder a session passes to the game with -savedatafolder.</summary>
+    public string ProfileDirectory(string id) =>
+        id == SessionManager.MainSessionId ? Path.Combine(StateDirectory, "profile") : Path.Combine(StateDirectory, "profiles", id);
 
     public string GameVersion
     {

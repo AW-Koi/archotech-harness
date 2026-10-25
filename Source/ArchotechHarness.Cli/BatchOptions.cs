@@ -6,4 +6,5 @@ public sealed record BatchOptions(
     IReadOnlyList<string> Filters,
     int Retries,
     string OutputDirectory,
-    int Port);
+    int Port,
+    string? Workers = null);

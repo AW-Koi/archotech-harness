@@ -40,11 +40,11 @@ To run every scenario in a folder or project:
 
 ## What happens to your game files
 
-- **Config:** the game runs with `-savedatafolder=<repo>/.harness/profile`, so it reads and writes a separate ModsConfig.xml, Prefs.xml and Saves folder. Your own config and saves stay as they are.
+- **Config:** the game runs with `-savedatafolder=<repo>/.harness/profile` (or `.harness/profiles/<worker>` in a pool), so it reads and writes a separate ModsConfig.xml, Prefs.xml and Saves folder. Your own config and saves stay as they are.
 - **Logs:** RimWorld always writes `Player.log` to your real data folder. `archo` backs up `ModsConfig.xml`, `Prefs.xml`, `Player.log` and `Player-prev.log` before launch, then restores them and checks their SHA-256 hashes when the session ends. It keeps the session log as `.harness/last-session-Player.log`.
 - **Crashes:** a hidden watchdog process restores the files when the game exits, even after a crash or a kill. If the watchdog dies too, the next `archo` command restores them, or you can run `archo restore`.
 - **Mods folder:** `archo` links the harness mod, and any mod under test that isn't already installed, into `<RimWorld>/Mods` as `archo-<packageId>` directory junctions. It removes them when the session ends.
-- **Another session or game:** `archo` refuses to start while another archo session or any RimWorld is running, and says which. Pass `--wait` to wait for it instead.
+- **Another session or game:** `archo` refuses to start while an archo session from any checkout on this machine, or any other RimWorld, is running, and says which. Pass `--wait` to wait for it instead. Sessions, the file backup and the junction list live in `%LOCALAPPDATA%/ArchotechHarness`, so every checkout sees them; set `ARCHO_STATE` to move them.
 
 ## Scenarios
 
@@ -169,6 +169,7 @@ The report lists `passed`, `checks` (with the source text of each condition), `n
 `archo test` finds every scenario class under the paths you give it (scenario files, folders or scenarios projects, default the current folder) and runs them:
 
 - It boots one game per mod and DLC set. Scenarios that share a set share the game.
+- With `--workers N` it runs N games at once, each on its own port and profile. Pool games run without a window (`-NoWindow -NoFileLog`); screenshots still work, and errors come back through each scenario's `gameErrors`. The first game backs your files up and the last one restores them.
 - Before each scenario after the first, it replaces the game with a fresh quick-test colony (`newGame`), so pawns, maps, the storyteller and game speed don't carry over. Static state inside your own mod does carry over.
 - It prints one JSON line per scenario and a summary line, and writes `run.json` and `report.html` (checks, notes, screenshots, game errors and timing) to `.harness/test-runs/<timestamp>/`, or to `--out`.
 - The exit code is 0 only when every scenario passed.
@@ -177,6 +178,7 @@ The report lists `passed`, `checks` (with the source text of each condition), `n
 | --- | --- |
 | `--filter GLOB` | Runs only scenarios whose class name, or full name, matches. `*` and `?` work; repeat it to match any of several. |
 | `--retries N` | Runs a failed scenario up to N more times, each in a fresh colony. |
+| `--workers N` | Runs N games at once (default 1). `auto` allows one game per 12 GB of RAM and per 4 logical processors, up to 4. Each game takes about 2.3 GB of RAM. |
 | `--wait` | Waits for another session to end instead of refusing to start. |
 | `--out DIR` | Writes the reports there. |
 
@@ -186,12 +188,12 @@ The report lists `passed`, `checks` (with the source text of each condition), `n
 | --- | --- |
 | `archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]` | Starts a session and returns once the map is loaded. |
 | `archo run FILE.cs [--keep-open] [--attach] [--wait] [--out DIR]` | Runs one scenario class in its own session. `--attach` uses the running session instead and leaves it open. |
-| `archo test [PATH]... [--filter GLOB]... [--retries N] [--wait] [--out DIR]` | Runs many scenarios; see above. |
-| `archo send COMMAND ['{json args}']` | Sends one harness command and prints the response. |
-| `archo capture PATH.png` | Captures the game window from outside the game. |
-| `archo status` | Shows whether a session is running. |
+| `archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--out DIR]` | Runs many scenarios; see above. |
+| `archo send COMMAND ['{json args}'] [--session ID]` | Sends one harness command and prints the response. `--session` picks a pool worker such as `w2`. |
+| `archo capture PATH.png [--session ID]` | Captures the game window from outside the game. |
+| `archo status` | Lists this checkout's sessions. |
 | `archo log [--count N] [--problems]` | Prints the tail of the session log. |
-| `archo stop` | Quits the game and restores your files. |
+| `archo stop` | Quits this checkout's games and restores your files. |
 | `archo restore` | Restores your files after an unfinished session. |
 
 DLC names are `royalty`, `ideology`, `biotech`, `anomaly` and `odyssey`. A mod directory is the folder that holds `About/About.xml`.
@@ -250,6 +252,8 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`. A mod that referen
 ## Game launch details
 
 `archo` starts `RimWorld.exe` with `-quicktest -savedatafolder=<profile> -WindowSize=W,H -harnessPort=N -NoCrashDialog -DisableLogStackTraces`. The quick-test start uses the Crashlanded scenario with Cassandra on Rough, on a random 250 by 250 map. The written Prefs.xml enables dev mode, opens a window instead of fullscreen, keeps the game running unfocused and mutes the sound.
+
+Pool games add `-NoWindow -NoFileLog`. `-Headless` also runs scenarios and uses about half the RAM, but it renders nothing, so screenshots fail, and it keeps a core busy; archo doesn't use it.
 
 The watchdog titles the game window "Archotech Harness" and gives it `art/ArchotechHarness.ico`, in the title bar and on the taskbar. It reapplies both if the game resets them. It touches only the game it launched.
 

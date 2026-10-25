@@ -46,7 +46,7 @@ public sealed class CommandLineOptions
 
     public string? PositionalOrNull(int index) => index < _positionals.Count ? _positionals[index] : null;
 
-    public int Port() => Value("--port") is { } port ? int.Parse(port) : LaunchOptions.DefaultPort;
+    public int Port() => Value("--port") is { } port ? int.Parse(port) : 0;
 
     public WindowSize Window()
     {

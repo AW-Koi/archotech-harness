@@ -10,9 +10,9 @@ public static class Program
 
           archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
           archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--out DIR] [--port N]
-          archo test [PATH]... [--filter GLOB]... [--retries N] [--wait] [--out DIR] [--port N]
-          archo send COMMAND ['{"json":"args"}']
-          archo capture PATH.png
+          archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--out DIR]
+          archo send COMMAND ['{"json":"args"}'] [--session ID]
+          archo capture PATH.png [--session ID]
           archo status
           archo log [--count N] [--problems]
           archo stop
@@ -43,7 +43,7 @@ public static class Program
                 "log" => Log(paths, options),
                 "stop" => Print(Describe(sessions.Stop())),
                 "restore" => Print(Describe(sessions.Finish())),
-                "watchdog" => Watchdog(sessions),
+                "watchdog" => Watchdog(sessions, options),
                 _ => throw new ScenarioException($"Unknown command '{args[0]}'.\n{Usage}"),
             };
         }
@@ -81,7 +81,7 @@ public static class Program
             : Path.Combine(paths.StateDirectory, "test-runs", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
         WaitIfAsked(sessions, options);
         var outcomes = new ScenarioBatch(sessions, Console.Out, Console.Error).Run(new BatchOptions(
-            scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port()));
+            scenarioPaths, options.All("--filter"), int.Parse(options.Value("--retries") ?? "0"), outputDirectory, options.Port(), options.Value("--workers")));
         return outcomes.All(o => o.Passed) ? 0 : 1;
     }
 
@@ -95,7 +95,7 @@ public static class Program
 
     private static int Send(SessionManager sessions, CommandLineOptions options)
     {
-        var session = sessions.Current ?? throw new ScenarioException("No session is running; use 'archo launch' first.");
+        var session = Session(sessions, options);
         var command = options.Positional(0, "command");
         var arguments = options.PositionalOrNull(1) is { } json
             ? JsonNode.Parse(json) as JsonObject ?? throw new ScenarioException("Arguments must be a JSON object.")
@@ -107,7 +107,7 @@ public static class Program
 
     private static int Capture(SessionManager sessions, CommandLineOptions options)
     {
-        var session = sessions.Current ?? throw new ScenarioException("No session is running.");
+        var session = Session(sessions, options);
         var path = Path.GetFullPath(options.Positional(0, "output path"));
         var (width, height) = WindowCapture.Save(session.GameProcessId, path);
         return Print(new JsonObject { ["path"] = path, ["width"] = width, ["height"] = height });
@@ -126,9 +126,13 @@ public static class Program
         return 0;
     }
 
-    private static int Watchdog(SessionManager sessions)
+    private static SessionState Session(SessionManager sessions, CommandLineOptions options) =>
+        (options.Value("--session") is { } id ? sessions.Find(id) : sessions.Current)
+        ?? throw new ScenarioException("No session is running; use 'archo launch' first.");
+
+    private static int Watchdog(SessionManager sessions, CommandLineOptions options)
     {
-        sessions.RunWatchdog();
+        sessions.RunWatchdog(options.Value("--session") ?? SessionManager.MainSessionId);
         return 0;
     }
 
