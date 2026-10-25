@@ -32,6 +32,8 @@ public sealed class ScriptSession
 
     public bool AnyCheckFailed { get; private set; }
 
+    public PendingBuilders Builders { get; } = new();
+
     public static ScriptSession Begin(string outputDirectory) => Current = new ScriptSession(outputDirectory);
 
     public Task WaitFor(Func<bool> done, double timeoutSeconds, string what)
@@ -93,6 +95,14 @@ public sealed class ScriptSession
     {
         var errors = Log.Messages.Where(m => m.type == LogMessageType.Error).Skip(_errorsAtStart).Select(m => (JsonNode)m.text).ToArray();
         var failure = script.Exception?.InnerException;
+        if (failure == null)
+        {
+            foreach (var builder in Builders.Unfinished)
+            {
+                Check(false, builder);
+            }
+        }
+
         return new JsonObject
         {
             ["passed"] = failure == null && !AnyCheckFailed,

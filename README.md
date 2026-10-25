@@ -58,10 +58,23 @@ public sealed class MopsTheFloor : HarnessScenario
 {
     public override async Task Run()
     {
-        var room = Build.Room(World.Center, width: 11, height: 9, floor: TerrainDefOf.WoodPlankFloor, door: Rot4.South);
-        var cleaner = Spawn.Colonist("Cleaner", inside: room, work: [WorkTypeDefOf.Cleaning]);
-        cleaner.Equip(MyModDefOf.MyMod_Mop, stuff: ThingDefOf.WoodLog);
+        var room = Build.Room()
+            .Size(11, 9)
+            .WithFloor(TerrainDefOf.WoodPlankFloor)
+            .WithDoor(Rot4.South)
+            .Build();
+
+        var cleaner = Spawn.Colonist()
+            .WithName("Cleaner")
+            .Inside(room)
+            .Doing(WorkTypeDefOf.Cleaning)
+            .Spawn();
         Colonists.RemoveAllExcept(cleaner);
+
+        Spawn.Thing(MyModDefOf.MyMod_Mop)
+            .MadeOf(ThingDefOf.WoodLog)
+            .GivenTo(cleaner)
+            .Spawn();
 
         room.Scatter(ThingDefOf.Filth_Blood, 12);
         var before = room.Filth().Count;
@@ -76,6 +89,8 @@ public sealed class MopsTheFloor : HarnessScenario
 ```
 
 The game is paused before `Run()` starts, so the quick-test colonists stand still until your scenario sets a speed. Remove them with `Colonists.RemoveAllExcept` before you unpause, or they may walk filth into your rooms.
+
+`Build.Room()`, `Spawn.Colonist()` and `Spawn.Thing(def)` return builders: chain one option per line, then finish with `.Build()` or `.Spawn()`. Nothing happens until that call. A builder you never finish fails the run with a check that names its file and line, and a missing required part, such as a room without a size, throws `HarnessException`.
 
 ### Defs
 
@@ -145,10 +160,11 @@ Open a folder, not a single file, so C# Dev Kit loads the project. For this repo
 | --- | --- |
 | `World.Map`, `World.Center` | The current map and its centre cell. |
 | `World.Filth(area, filthDefs)`, `World.Things(thingDef, area)`, `World.Pawn(name)` | Queries the map. Returns `Filth`, `Thing` and `Pawn` objects. |
-| `Build.Room(center, width, height, floor, wall, stuff, door, roof)` | Clears the area, builds a finished walled room and removes any filth inside it. `floor` is a `TerrainDef`; `wall` (default `ThingDefOf.Wall`) and `stuff` (default `ThingDefOf.WoodLog`) are `ThingDef`s. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(filthDefs)` and `Scatter(filthDef, count, seed)`, which returns the `Filth` it made. |
-| `Spawn.Colonist(name, at, inside, work, traits, onlyWork, kind, incapableOf)` | Generates a colonist able to do `work` (`WorkTypeDef`s); with `onlyWork`, all other work is off. Traits are `new Trait(TraitDefOf.Industriousness, degree: 1)`. `kind` is a `PawnKindDef` (default `PawnKindDefOf.Colonist`). `incapableOf` (`WorkTags`) swaps in a childhood that disables those tags. Returns the `Pawn`. |
-| `Spawn.Thing(thingDef, at, count, stuff, quality)`, `Spawn.Filth(filthDef, at, thickness)` | Places a thing and returns it, or makes filth and returns the `Filth` (null when the cell takes none). |
-| `pawn.Equip(thingDef, stuff, quality)`, `pawn.SetWork(workTypeDef, priority)`, `pawn.CurrentJob()` | Pawn shortcuts. `Equip` returns the new `Thing`; `CurrentJob` returns the `JobDef`, or null when idle. |
+| `Build.Room()` ... `.Build()` | Clears the area, builds a finished walled room and removes any filth inside it. `.Size(width, height)` (walls included, at least 3 by 3) is required. `.CenteredOn(cell)` (default: the map centre), `.WithFloor(terrainDef)`, `.WithWalls(thingDef)` (default `ThingDefOf.Wall`), `.MadeOf(stuff)` (default `ThingDefOf.WoodLog`), `.WithDoor(rot4)` (default: no door) and `.Roofed()` are optional. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(filthDefs)` and `Scatter(filthDef, count, seed)`, which returns the `Filth` it made. |
+| `Spawn.Colonist()` ... `.Spawn()` | Generates a colonist and returns the `Pawn`. `.WithName(name)`, `.At(cell)` or `.Inside(room)` (default: the map centre), `.Doing(workTypeDefs)`, `.KeepingOtherWork()` (by default only the `Doing` work is on), `.IncapableOf(workTags)` (swaps in a childhood that disables those tags), `.WithTrait(traitDef, degree)`, `.WithSkill(skillDef, level)` and `.OfKind(pawnKindDef)` (default `PawnKindDefOf.Colonist`). |
+| `Spawn.Thing(thingDef)` ... `.Spawn()` | Makes a thing and returns it. Either `.At(cell)` places it, or `.GivenTo(pawn)` equips a weapon, puts on apparel or adds anything else to the inventory. `.MadeOf(stuff)`, `.OfQuality(qualityCategory)` and `.Stack(count)` are optional. |
+| `Spawn.Filth(filthDef, at, thickness)` | Makes filth and returns the `Filth`, or null when the cell takes none. |
+| `pawn.SetWork(workTypeDef, priority)`, `pawn.CurrentJob()` | Pawn shortcuts. `CurrentJob` returns the `JobDef`, or null when idle. |
 | `pawn.Memories(thoughtDef)`, `pawn.HasThought(thoughtDef)` | The pawn's `Thought_Memory` list, optionally of one `ThoughtDef`. |
 | `pawn.FloatMenuAt(cell)` | The right-click options the pawn gets at a cell, as `FloatMenuOption`s. |
 | `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. `RemoveAllExcept` returns the pawns it removed. |

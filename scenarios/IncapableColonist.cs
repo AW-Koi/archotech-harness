@@ -6,7 +6,11 @@ public sealed class IncapableColonist : HarnessScenario
     public override async Task Run()
     {
         Clock.Speed = TimeSpeed.Paused;
-        var colonist = Spawn.Colonist("Gentle", work: [WorkTypeDefOf.Cleaning], incapableOf: WorkTags.Violent | WorkTags.Animals);
+        var colonist = Spawn.Colonist()
+            .WithName("Gentle")
+            .Doing(WorkTypeDefOf.Cleaning)
+            .IncapableOf(WorkTags.Violent | WorkTags.Animals)
+            .Spawn();
 
         Check(colonist.WorkTagIsDisabled(WorkTags.Violent));
         Check(colonist.WorkTagIsDisabled(WorkTags.Animals));

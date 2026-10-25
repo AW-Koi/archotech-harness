@@ -6,10 +6,19 @@ public sealed class CleaningBasics : HarnessScenario
     public override async Task Run()
     {
         Clock.Speed = TimeSpeed.Paused;
-        var room = Build.Room(World.Center, width: 11, height: 9, floor: TerrainDefOf.WoodPlankFloor, door: Rot4.South);
+        var room = Build.Room()
+            .CenteredOn(World.Center)
+            .Size(11, 9)
+            .WithFloor(TerrainDefOf.WoodPlankFloor)
+            .WithDoor(Rot4.South)
+            .Build();
 
-        var cleaner = Spawn.Colonist("Cleaner", inside: room, work: [WorkTypeDefOf.Cleaning],
-            traits: [new Trait(TraitDefOf.Industriousness, degree: 1)]);
+        var cleaner = Spawn.Colonist()
+            .WithName("Cleaner")
+            .Inside(room)
+            .Doing(WorkTypeDefOf.Cleaning)
+            .WithTrait(TraitDefOf.Industriousness, degree: 1)
+            .Spawn();
         Colonists.RemoveAllExcept(cleaner);
 
         ThingDef[] mess = [ThingDefOf.Filth_Blood, ThingDefOf.Filth_Dirt, CleaningDefOf.Filth_Sand];

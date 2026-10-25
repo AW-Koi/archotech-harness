@@ -6,18 +6,9 @@ using Verse;
 
 namespace ArchotechHarness.Scripting;
 
-/// <summary>Script shortcuts on pawns: gear, work priorities, the current job and memories.</summary>
+/// <summary>Script shortcuts on pawns: work priorities, the current job, memories and the right-click menu.</summary>
 public static class PawnScriptExtensions
 {
-    /// <summary>Gives the pawn a new thing: a weapon is equipped, apparel is worn, anything else goes to the inventory.</summary>
-    /// <remarks>Without stuff, a thing made from stuff uses the def's default stuff.</remarks>
-    public static Thing Equip(this Pawn pawn, ThingDef def, ThingDef stuff = null, QualityCategory? quality = null)
-    {
-        var thing = ThingFactory.Make(def, stuff, quality);
-        EquipCommand.Give(pawn, thing);
-        return thing;
-    }
-
     public static void SetWork(this Pawn pawn, WorkTypeDef work, int priority) =>
         SetWorkCommand.Apply(pawn, new Dictionary<WorkTypeDef, int> { [work] = priority }, onlyWork: false);
 
