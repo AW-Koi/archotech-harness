@@ -1,132 +1,108 @@
 # Archotech Harness
 
-Start RimWorld 1.7 from a script, set up a colony, drive the game, read results back as JSON and take screenshots. It's built for AI agents and for repeatable in-game checks of your own mods.
-
-The harness has three parts:
-
-- `archo`, a command-line tool that prepares a dev profile, launches the game straight into a quick-test map, runs scenarios and restores your files afterwards.
-- A dev-only mod (`TerraIncognita.ArchotechHarness`) that listens on `127.0.0.1` and runs commands on the game's main thread.
-- Scenarios: C# classes in a scenarios project that `archo` builds and runs inside the game.
-
-## Requirements
-
-- Windows, the .NET 10 SDK, and RimWorld 1.7 (the Waylith build).
-- The Harmony mod (`brrainz.harmony`) with 1.7 support, from the Steam workshop or the Mods folder.
-- Steam running, if Harmony comes from the workshop.
-
-`archo` and the builds find RimWorld through Steam: they read the Steam install path from the registry, then the library in `libraryfolders.vdf` that holds app 294100. Set `RIMWORLD_DIR` to the folder that holds `Assembly-CSharp.dll` to use another install.
+Archotech Harness scripts RimWorld 1.7 end to end. You write a scenario in C#: it builds a colony, drives the game and checks the result. `archo` runs your scenarios in real games, apart from your own saves and settings, several at once if you like, and gives you a report with checks and screenshots.
 
 ## Quick start
 
-From Git Bash, in the repo folder:
+You need:
+
+- Windows and the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+- RimWorld 1.7. `archo` finds a Steam install by itself. For another install, set `RIMWORLD_DIR` to the folder that holds `Assembly-CSharp.dll`.
+- The [Harmony](https://steamcommunity.com/sharedfiles/filedetails/?id=2009463077) mod, subscribed on Steam or in your Mods folder.
+
+Clone the repo and run the sample scenario from its folder:
 
 ```sh
+git clone https://github.com/AW-Koi/archotech-harness.git
+cd archotech-harness
 ./archo run scenarios/CleaningBasics.cs
 ```
 
-From PowerShell:
+In PowerShell, use `.\archo.ps1` instead of `./archo`.
 
-```powershell
-.\archo.ps1 run scenarios\CleaningBasics.cs
-```
+The first run builds `archo` and the harness mod. The game opens, the scenario runs and the game closes. `archo` prints a JSON report and saves it, with the screenshots, in `.harness/runs/<scenario>-<time>/`.
 
-The first call builds the CLI and the mod. Set `ARCHO_REBUILD=1` to rebuild after you pull changes. A scenario run prints one JSON report line. Screenshots and the report go to `.harness/runs/<scenario>-<timestamp>/`, or to the folder you pass with `--out`.
+Run every scenario in a folder with `./archo test scenarios`. That writes `report.html` to `.harness/test-runs/<time>/`.
 
-To run every scenario in a folder or project:
+## Writing a scenario
 
-```sh
-./archo test scenarios
-```
-
-## What happens to your game files
-
-- **Config:** the game runs with `-savedatafolder=<repo>/.harness/profile` (or `.harness/profiles/<worker>` in a pool), so it reads and writes a separate ModsConfig.xml, Prefs.xml and Saves folder. Your own config and saves stay as they are.
-- **Logs:** RimWorld always writes `Player.log` to your real data folder. `archo` backs up `ModsConfig.xml`, `Prefs.xml`, `Player.log` and `Player-prev.log` before launch, then restores them and checks their SHA-256 hashes when the session ends. It keeps the session log as `.harness/last-session-Player.log`.
-- **Crashes:** a hidden watchdog process restores the files when the game exits, even after a crash or a kill. If the watchdog dies too, the next `archo` command restores them, or you can run `archo restore`.
-- **Mods folder:** `archo` links the harness mod, and any mod under test that isn't already installed, into `<RimWorld>/Mods` as `archo-<packageId>` directory junctions. It removes them when the session ends.
-- **Another session or game:** `archo` refuses to start while an archo session from any checkout on this machine, or any other RimWorld, is running, and says which. Pass `--wait` to wait for it instead. Sessions, the file backup and the junction list live in `%LOCALAPPDATA%/ArchotechHarness`, so every checkout sees them; set `ARCHO_STATE` to move them.
-
-## Scenarios
-
-A scenario is a C# class deriving from `HarnessScenario`, in a scenarios project. `Run()` executes on the game's main thread with full access to the game and every loaded mod, and `await` waits without freezing the game:
+A scenario is a class that derives from `HarnessScenario`. Its `Run` method runs inside the game once a fresh colony has loaded:
 
 ```csharp
-namespace MyMod.Scenarios;
+namespace Scenarios;
 
-[Mod("../mod", Build = "dotnet build Source/MyMod/MyMod.csproj", BuildIn = "..")]
-public sealed class MopsTheFloor : HarnessScenario
+public sealed class CleanerCleans : HarnessScenario
 {
     public override async Task Run()
     {
         var room = Build.Room()
-            .Size(11, 9)
+            .Size(9, 7)
             .WithFloor(TerrainDefOf.WoodPlankFloor)
             .WithDoor(Rot4.South)
             .Build();
 
         var cleaner = Spawn.Colonist()
-            .WithName("Cleaner")
             .Inside(room)
             .Doing(WorkTypeDefOf.Cleaning)
             .Spawn();
         Colonists.RemoveAllExcept(cleaner);
 
-        Spawn.Thing(MyModDefOf.MyMod_Mop)
-            .MadeOf(ThingDefOf.WoodLog)
-            .GivenTo(cleaner)
-            .Spawn();
-
-        room.Scatter(ThingDefOf.Filth_Blood, 12);
+        room.Scatter(ThingDefOf.Filth_Blood, 10);
         var before = room.Filth().Count;
         await Shot("before");
 
         Clock.Speed = TimeSpeed.Superfast;
-        await Until(() => room.Filth().Count < before);
+        await Until(() => room.Filth().Count < before, timeoutSeconds: 120);
+
         Check(cleaner.CurrentJob() == JobDefOf.Clean);
         await Shot("after");
     }
 }
 ```
 
-The game is paused before `Run()` starts, so the quick-test colonists stand still until your scenario sets a speed. Remove them with `Colonists.RemoveAllExcept` before you unpause, or they may walk filth into your rooms.
+Save it in `scenarios/` and run it with `./archo run scenarios/CleanerCleans.cs`.
 
-`Build.Room()`, `Spawn.Colonist()` and `Spawn.Thing(def)` return builders: chain one option per line, then finish with `.Build()` or `.Spawn()`. Nothing happens until that call. A builder you never finish fails the run with a check that names its file and line, and a missing required part, such as a room without a size, throws `HarnessException`.
+### Builders
+
+`Build.Room()`, `Spawn.Colonist()` and `Spawn.Thing(def)` return builders. Chain the options you need, then finish with `.Build()` or `.Spawn()`. Nothing happens until that call, and a builder you never finish fails the run.
+
+### Waiting and checking
+
+- `await Until(() => condition)` waits for a condition without freezing the game. It fails the run when the timeout passes.
+- `await Ticks(n)` waits for game time. The game starts paused, so set `Clock.Speed` first.
+- `Check(condition)` records a check and carries on. `Require(condition)` stops the scenario when it fails. The report shows the source text of each check.
+
+### Screenshots and notes
+
+`await Shot("name")` saves a screenshot. `Note("key", value)` adds a value to the report.
 
 ### Defs
 
-Scenarios pass defs as typed objects, never as defName strings. Use RimWorld's DefOf classes (`ThingDefOf`, `TerrainDefOf`, `JobDefOf`, `WorkTypeDefOf`, `TraitDefOf`, `ThoughtDefOf`, `PawnKindDefOf` and so on) and your mod's own. For a def that no DefOf class covers, declare your own `[DefOf]` class in the scenarios project:
+Pass defs as objects, never as name strings. Use RimWorld's DefOf classes, your mod's own, or declare one in your scenarios project:
 
 ```csharp
 [DefOf]
-public static class CleaningDefOf
+public static class MyScenarioDefOf
 {
     public static ThingDef Filth_Sand;
-
-    [DefAlias("Filth_SpentAcid")]
-    public static ThingDef SpentAcid;
 }
 ```
 
-RimWorld binds DefOf fields only at startup, so the harness binds the `[DefOf]` classes in a scenarios assembly when it loads it. Each field takes the def named after it, or the name in `[DefAlias]`. If a def doesn't exist, the run fails before `Run()` starts and names the field. Mark a field from a DLC or another mod with `[MayRequire("packageId")]` to leave it null when that mod isn't active. `scenarios/CleaningDefOf.cs` is a working example.
+The harness binds it when the scenario loads. A field whose def doesn't exist fails the run before it starts.
 
-`archo run FILE.cs` reads the class's attributes, builds the listed mods, then builds the scenarios project that holds the file. A build error is reported before the game starts. A runtime error is reported with the scenario file and line it came from.
+### Mods and DLCs
 
-### Attributes
-
-Attribute arguments must be literals. Paths are relative to the scenario file.
+Attributes on the class say what the game loads. Paths are relative to the scenario file.
 
 | Attribute | Does |
 | --- | --- |
-| `[Mod("DIR")]` | Loads a mod under test; DIR holds `About/About.xml`. Repeat it for several mods. |
-| `[Mod("DIR", Build = "COMMAND", BuildIn = "DIR")]` | Also runs COMMAND before launch, in BuildIn (default: the mod folder). |
-| `[Dlc("biotech", "ideology")]` | Activates DLCs. |
-| `[Window(1600, 900)]` | Sets the window size. |
+| `[Mod("../mod")]` | Loads the mod in that folder. Repeat it for several mods. |
+| `[Mod("../mod", Build = "dotnet build", BuildIn = "..")]` | Also builds the mod before the run. |
+| `[Dlc("biotech")]` | Activates DLCs: `royalty`, `ideology`, `biotech`, `anomaly`, `odyssey`. |
 
-### Scenarios project
+## Using it from your own mod
 
-`build/ArchotechScenarios.props` turns a .csproj into a scenarios project. It finds RimWorld, targets .NET 10, references the game, Harmony and the harness, and imports `System`, `System.Collections.Generic`, `System.Linq`, `System.Threading.Tasks`, `Verse`, `Verse.AI`, `RimWorld`, `ArchotechHarness.Scripting` and `static ArchotechHarness.Scripting.Script`. This repo's own project is `scenarios/Scenarios.csproj`.
-
-A mod repo keeps its own scenarios next to the mod, for example `MyMod/harness/Scenarios.csproj`. It finds the harness through the `ARCHO_HOME` environment variable, set to your harness clone, and falls back to a sibling `ArchotechHarness` folder:
+Keep your scenarios next to your mod, for example in `MyMod/harness/`. Add this `Scenarios.csproj` there:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -146,148 +122,68 @@ A mod repo keeps its own scenarios next to the mod, for example `MyMod/harness/S
 </Project>
 ```
 
-- The `Reference` gives scenarios typed access to the mod, such as its DefOf classes.
-- Scenarios in that project use `[Mod("../mod")]`. Run one with `<harness>/archo run MyMod/harness/MyScenario.cs`, or all of them with `<harness>/archo test MyMod/harness`.
-- The harness mod must be built once (`./archo --help` builds it), because the props reference `mod/1.7/Assemblies/ArchotechHarness.dll`.
+1. Set the `ARCHO_HOME` environment variable to your harness clone. A clone in a sibling `ArchotechHarness` folder also works.
+2. Run `./archo --help` in the harness once, so the harness mod is built.
+3. Change the `Reference` to your mod's assembly, so scenarios can use its types and DefOf classes.
+4. Put `[Mod("../mod")]` on your scenarios, then run them with `<harness>/archo test MyMod/harness`.
 
-### Editing in VS Code
+To edit scenarios in VS Code, open a folder, not a single file. Add `harness/Scenarios.csproj` to your mod's .sln, or open the `harness` folder.
 
-Open a folder, not a single file, so C# Dev Kit loads the project. For this repo, open the repo folder; `ArchotechHarness.sln` includes `scenarios/Scenarios.csproj`. For a mod repo, add `harness/Scenarios.csproj` to the mod's .sln, or open the `harness` folder on its own. `dotnet build` of the project checks every scenario.
+Your mod can also expose its own checks to `archo send`. Add a class named `ArchotechProbes`; you don't need a reference to the harness:
 
-### Scenario API
+```csharp
+public static class ArchotechProbes
+{
+    public static int MopsOnMap() => Find.CurrentMap.listerThings.ThingsOfDef(MyModDefOf.Mop).Count;
+}
+```
 
-| Member | Does |
-| --- | --- |
-| `World.Map`, `World.Center` | The current map and its centre cell. |
-| `World.Filth(area, filthDefs)`, `World.Things(thingDef, area)`, `World.Pawn(name)` | Queries the map. Returns `Filth`, `Thing` and `Pawn` objects. |
-| `Build.Room()` ... `.Build()` | Clears the area, builds a finished walled room and removes any filth inside it. `.Size(width, height)` (walls included, at least 3 by 3) is required. `.CenteredOn(cell)` (default: the map centre), `.WithFloor(terrainDef)`, `.WithWalls(thingDef)` (default `ThingDefOf.Wall`), `.MadeOf(stuff)` (default `ThingDefOf.WoodLog`), `.WithDoor(rot4)` (default: no door) and `.Roofed()` are optional. Returns a `HarnessRoom` with `Bounds`, `Interior`, `Center`, `Filth(filthDefs)` and `Scatter(filthDef, count, seed)`, which returns the `Filth` it made. |
-| `Spawn.Colonist()` ... `.Spawn()` | Generates a colonist and returns the `Pawn`. `.WithName(name)`, `.At(cell)` or `.Inside(room)` (default: the map centre), `.Doing(workTypeDefs)`, `.KeepingOtherWork()` (by default only the `Doing` work is on), `.IncapableOf(workTags)` (swaps in a childhood that disables those tags), `.WithTrait(traitDef, degree)`, `.WithSkill(skillDef, level)` and `.OfKind(pawnKindDef)` (default `PawnKindDefOf.Colonist`). |
-| `Spawn.Thing(thingDef)` ... `.Spawn()` | Makes a thing and returns it. Either `.At(cell)` places it, or `.GivenTo(pawn)` equips a weapon, puts on apparel or adds anything else to the inventory. `.MadeOf(stuff)`, `.OfQuality(qualityCategory)` and `.Stack(count)` are optional. |
-| `Spawn.Filth(filthDef, at, thickness)` | Makes filth and returns the `Filth`, or null when the cell takes none. |
-| `pawn.SetWork(workTypeDef, priority)`, `pawn.CurrentJob()` | Pawn shortcuts. `CurrentJob` returns the `JobDef`, or null when idle. |
-| `pawn.Memories(thoughtDef)`, `pawn.HasThought(thoughtDef)` | The pawn's `Thought_Memory` list, optionally of one `ThoughtDef`. |
-| `pawn.FloatMenuAt(cell)` | The right-click options the pawn gets at a cell, as `FloatMenuOption`s. |
-| `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. `RemoveAllExcept` returns the pawns it removed. |
-| `Camera.Look(cell, zoom)`, `Camera.Frame(room)`, `Camera.Follow(pawn)` | Points the camera. |
-| `Clock.Speed`, `Clock.Tick` | Game speed and tick. A speed set here holds until changed. |
-| `await Until(() => condition, timeoutSeconds)` | Waits, checking once per frame. Throws `TimeoutException` on timeout. |
-| `await Ticks(n)`, `await Frames(n)` | Waits for game ticks or rendered frames. |
-| `await Shot(name)` | Saves a screenshot to the run folder. |
-| `Check(condition)` | Records a check; a failed check fails the run, and the scenario carries on. |
-| `Require(condition)` | Records a check and stops the scenario if it fails. |
-| `Note(key, value)` | Adds a value to the report. |
-| `await Command(name, args)` | Runs any harness command below, with JSON arguments. Scenarios rarely need it. |
-
-The report lists `passed`, `checks` (with the source text of each condition), `notes`, `shots`, `gameErrors` logged during the run, and on failure the `error` with the scenario lines in `at`.
-
-## Running many scenarios
-
-`archo test` finds every scenario class under the paths you give it (scenario files, folders or scenarios projects, default the current folder) and runs them:
-
-- It boots one game per mod and DLC set. Scenarios that share a set share the game.
-- With `--workers N` it runs N games at once, each on its own port and profile. Pool games run without a window (`-NoWindow -NoFileLog`); screenshots still work, and errors come back through each scenario's `gameErrors`. The first game backs your files up and the last one restores them.
-- Before each scenario after the first, it replaces the game with a fresh quick-test colony (`newGame`), so pawns, maps, the storyteller and game speed don't carry over. Static state inside your own mod does carry over.
-- It prints one JSON line per scenario and a summary line, and writes `run.json` and `report.html` (checks, notes, screenshots, game errors and timing) to `.harness/test-runs/<timestamp>/`, or to `--out`.
-- The exit code is 0 only when every scenario passed.
-
-| Option | Does |
-| --- | --- |
-| `--filter GLOB` | Runs only scenarios whose class name, or full name, matches. `*` and `?` work; repeat it to match any of several. |
-| `--retries N` | Runs a failed scenario up to N more times, each in a fresh colony. |
-| `--workers N` | Runs N games at once (default 1). `auto` allows one game per 12 GB of RAM and per 4 logical processors, up to 4. Each game takes about 2.3 GB of RAM. |
-| `--wait` | Waits for another session to end instead of refusing to start. |
-| `--out DIR` | Writes the reports there. |
+Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 
 ## Commands
 
 | Command | Does |
 | --- | --- |
-| `archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]` | Starts a session and returns once the map is loaded. |
-| `archo run FILE.cs [--keep-open] [--attach] [--wait] [--out DIR]` | Runs one scenario class in its own session. `--attach` uses the running session instead and leaves it open. |
-| `archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--out DIR]` | Runs many scenarios; see above. |
-| `archo send COMMAND ['{json args}'] [--session ID]` | Sends one harness command and prints the response. `--session` picks a pool worker such as `w2`. |
-| `archo capture PATH.png [--session ID]` | Captures the game window from outside the game. |
-| `archo status` | Lists this checkout's sessions. |
-| `archo log [--count N] [--problems]` | Prints the tail of the session log. |
-| `archo stop` | Quits this checkout's games and restores your files. |
-| `archo restore` | Restores your files after an unfinished session. |
+| `archo run FILE.cs` | Runs one scenario in a new game, then closes it. `--keep-open` leaves the game running; `--attach` uses a game that's already running. |
+| `archo test [PATH]...` | Runs every scenario in the files, folders or projects given, and writes `report.html`. |
+| `archo test --filter GLOB` | Runs only matching scenarios, such as `--filter "Mop*"`. Repeat it to match several patterns. |
+| `archo test --retries N` | Retries a failed scenario up to N times. |
+| `archo test --workers N` | Runs N games at once. `--workers auto` picks a number that fits your machine. |
+| `archo launch` | Starts a game and leaves it running for `send`. `--mod DIR` and `--dlc NAME` choose what it loads. |
+| `archo send COMMAND ['{json}']` | Sends one command to the running game, such as `status`. |
+| `archo status` | Lists your running games. |
+| `archo stop` | Closes your games and restores your files. |
+| `archo restore` | Restores your files after an interrupted run. |
 
-DLC names are `royalty`, `ideology`, `biotech`, `anomaly` and `odyssey`. A mod directory is the folder that holds `About/About.xml`.
+Add `--wait` to `run` or `test` to wait for another game to close instead of stopping with an error. `archo test` exits with code 0 only when every scenario passed.
 
-## Harness commands
+## Reference
 
-Send them with `archo send`. A scenario can call one with `await Command(name, args)`, but the typed scenario API covers the same ground. Cells are `[x, z]` or `"center"`. Rectangles are `[x, z, width, height]`. The quick-test map is 250 by 250 cells.
+### Scenario API
 
-| Command | Arguments | Result |
-| --- | --- | --- |
-| `ping` | none | `pid`. Answers even while the game loads. |
-| `status` | none | Program state, `mapLoaded`, `tick`, `speed`, `paused`, map size and colonists. |
-| `spawnPawn` | `cell`, `name`, `kind`, `traits` (`"Def"` or `"Def:degree"`), `skills` (`{"Cooking": 8}`), `work` (`{"Cleaning": 1}`), `onlyWork`, `incapableOf` (work tags such as `["Violent"]`) | The colonist's `id`, `name`, `cell`, `incapableOf` and `traits`. It retries until the colonist can do every listed work type. `incapableOf` swaps in one vanilla childhood that disables all those tags. |
-| `spawnThing` | `def`, `cell`, `stuff`, `count`, `quality` | The thing's `id`, `cell` and `count`. |
-| `equip` | `pawn`, `def`, `stuff`, `quality` | `slot`: a weapon is equipped, apparel is worn, anything else goes to the inventory. |
-| `buildRoom` | `rect` (walls included), `wall`, `stuff`, `floor`, `door`, `doorDef`, `roof`, `home` | `rect`, `interior` and `center`. It clears the area first and adds the room to the home area. |
-| `spawnFilth` | `def`, `cells`, or `rect` with `count` and `seed`; `thickness` | `spawned`. |
-| `setWork` | `pawn`, `priorities`, `onlyWork` | The pawn's priorities above 0. |
-| `removeColonists` | `keep` (names) | `removed`. |
-| `speed` | `speed`: `paused`, `normal`, `fast`, `superfast`, `ultrafast` | `speed` and `tick`. |
-| `camera` | `cell` or `pawn`; `zoom` (`close`, `middle`, `far`, or 11 to 60); `select` | `cell` and `rootSize`. |
-| `wait` | `ticks`, `untilTick`, or `probe` with `args`, `path`, `op`, `value`; `timeoutSeconds` (default 120) | `tick`, `seconds` and the final `value`. |
-| `screenshot` | `path` | `path` and `bytes`. The game's own capture includes the UI. |
-| `probe` | `name`, `args` | The probe's result. |
-| `listProbes` | none | All probe and command names. |
-| `log` | `minLevel` (`message`, `warning`, `error`), `count`, `contains` | `errors`, `warnings` and the matching `entries`. |
-| `newGame` | `mapSize` (default 250), `planetCoverage` (default 0.05), `seed` | Replaces the game with a fresh quick-test colony. `seconds`, `seed` and `mapSize`. |
-| `quit` | none | Closes the game without saving. |
-| `runScenario` | `assembly`, `entryType`, `outputDirectory` | Loads a built scenarios assembly, runs the class and replies with its report. `archo` sends this for you. |
+| Member | Does |
+| --- | --- |
+| `Build.Room()` | Builds a walled room. Requires `.Size(w, h)`; takes `.CenteredOn(cell)`, `.WithFloor(def)`, `.WithWalls(def)`, `.MadeOf(stuff)`, `.WithDoor(rot)` and `.Roofed()`. Finish with `.Build()`. |
+| `Spawn.Colonist()` | Spawns a colonist. Takes `.WithName`, `.At(cell)` or `.Inside(room)`, `.Doing(workTypes)`, `.KeepingOtherWork()`, `.IncapableOf(tags)`, `.WithTrait`, `.WithSkill` and `.OfKind`. Finish with `.Spawn()`. |
+| `Spawn.Thing(def)` | Makes a thing. Takes `.At(cell)` or `.GivenTo(pawn)`, `.MadeOf`, `.OfQuality` and `.Stack`. Finish with `.Spawn()`. |
+| `Spawn.Filth(def, cell)` | Places filth. |
+| `room.Scatter(def, count)`, `room.Filth(defs)` | Spreads filth over a room, or lists the filth in it. |
+| `World.Map`, `World.Center`, `World.Filth`, `World.Things`, `World.Pawn` | The current map and queries over it. |
+| `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. |
+| `pawn.CurrentJob()`, `pawn.SetWork`, `pawn.HasThought`, `pawn.Memories`, `pawn.FloatMenuAt(cell)` | Pawn shortcuts. |
+| `Camera.Look`, `Camera.Frame(room)`, `Camera.Follow(pawn)` | Points the camera. |
+| `Clock.Speed`, `Clock.Tick` | Game speed and tick. |
+| `Until`, `Ticks`, `Frames` | Waits. |
+| `Check`, `Require`, `Note`, `Shot` | Records checks, values and screenshots. |
 
-`op` is one of `eq`, `ne`, `lt`, `le`, `gt` or `ge`. Without an `op`, a condition holds when the value is `true` or a non-zero number. Game time passes only while the game runs, so set a speed before a `wait`.
+### Isolation and your files
 
-### Built-in probes
+Each game runs with its own save-data folder under `.harness/`, so it never reads or writes your saves, mod list or settings. RimWorld still writes `Player.log` to your data folder, so `archo` backs up your config and logs before the first game. It restores them, checking every hash, when the last game closes. A watchdog does the same if the game crashes or is killed, and `archo restore` covers anything that slips through. `archo` won't start while you're playing RimWorld, or while another `archo` on this machine has a game open.
 
-- `filthCount`: `rect` and `defs` are optional. Returns `count` and `byDef`.
-- `thingCount`: needs `def`, and `rect` is optional. Returns `count` and `stackTotal`.
-- `pawn`: needs `pawn`. Returns cell, current job, job report, weapon, apparel, drafted and downed state, and work priorities.
-- `thoughts`: needs `pawn`, and `def` is optional. Returns `has` and `memories`, each with `def`, `mood` and `otherPawn`.
-- `floatMenu`: needs `pawn` and `cell`, and `labelContains` is optional. Returns `enabledCount`, `disabledCount` and the right-click `options` with their labels.
-- `mapLoaded` and `tick`.
+## Further reading
 
-### Adding probes from your mod
-
-Add a class named `ArchotechProbes` to your mod. You don't need a reference to the harness. Each public static method that takes no argument, or one JSON string, registers as `<AssemblyName>.<MethodName>`. It runs on the main thread, and its return value becomes the JSON result:
-
-```csharp
-public static class ArchotechProbes
-{
-    public static int MopsOnMap() =>
-        Find.CurrentMap.listerThings.ThingsOfDef(MyModDefOf.MyMod_Mop).Count;
-}
-```
-
-Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`. A mod that references `ArchotechHarness.dll` can call `ArchotechHarness.HarnessProbes.Register(name, json => resultJson)` instead.
-
-## Game launch details
-
-`archo` starts `RimWorld.exe` with `-quicktest -savedatafolder=<profile> -WindowSize=W,H -harnessPort=N -NoCrashDialog -DisableLogStackTraces`. The quick-test start uses the Crashlanded scenario with Cassandra on Rough, on a random 250 by 250 map. The written Prefs.xml enables dev mode, opens a window instead of fullscreen, keeps the game running unfocused and mutes the sound.
-
-Pool games add `-NoWindow -NoFileLog`. `-Headless` also runs scenarios and uses about half the RAM, but it renders nothing, so screenshots fail, and it keeps a core busy; archo doesn't use it.
-
-The watchdog titles the game window "Archotech Harness" and gives it `art/ArchotechHarness.ico`, in the title bar and on the taskbar. It reapplies both if the game resets them. It touches only the game it launched.
-
-## Building and testing
-
-```sh
-dotnet build ArchotechHarness.sln
-dotnet test ArchotechHarness.sln
-```
-
-The mod, its tests and the scenarios reference the game's `Assembly-CSharp.dll`, `UnityStubs.dll` and `Waylith.dll` from the RimWorld install that `build/FindRimWorld.props` finds. This repo contains none of the game's files.
-
-## Icons
-
-`art/make_icon.py` draws both icons and needs Python with Pillow:
-
-- `python art/make_icon.py png mod/About/ModIcon.png 128` draws the mod list icon.
-- `python art/make_icon.py ico art/ArchotechHarness.ico` draws the window and taskbar icon, rendering each size from 16 to 256 px separately.
+- [docs/harness-commands.md](docs/harness-commands.md): the JSON commands behind `archo send`.
+- [CONTRIBUTING.md](CONTRIBUTING.md): how the harness works, and how to build and test it.
 
 ## Licence
 
