@@ -47,10 +47,10 @@ public static class ScenarioInvoker
         }
     }
 
-    /// <summary>Replaces the game with a fresh quick-test colony and returns how long that took.</summary>
-    public static double NewGame(HarnessClient client)
+    /// <summary>Replaces the game with a fresh quick-test colony, on the biome if given, and returns how long that took.</summary>
+    public static double NewGame(HarnessClient client, string? biome = null)
     {
-        var response = client.Send("newGame", new JsonObject { ["timeoutSeconds"] = NewGameTimeoutSeconds });
+        var response = client.Send("newGame", new JsonObject { ["timeoutSeconds"] = NewGameTimeoutSeconds, ["biome"] = biome });
         return response["ok"]?.GetValue<bool>() == true
             ? response["result"]!["seconds"]!.GetValue<double>()
             : throw new ScenarioException("Could not start a fresh game: " + response["error"]);

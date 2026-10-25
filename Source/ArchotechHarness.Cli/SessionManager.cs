@@ -139,6 +139,11 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
                 arguments.AddRange(["-NoWindow", "-NoFileLog"]);
             }
 
+            if (options.Biome != null)
+            {
+                arguments.Add($"-harnessBiome={options.Biome}");
+            }
+
             game = Process.Start(new ProcessStartInfo(paths.GameExecutable)
             {
                 WorkingDirectory = paths.GameDirectory,
@@ -352,8 +357,13 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
 
         progress.WriteLine($"Harness for session '{session.Id}' is up; waiting for the quick-test map.");
         deadline = DateTime.UtcNow + MapLoadTimeout;
-        while (client.Send("status")["result"]?["playerHasControl"]?.GetValue<bool>() != true)
+        while (client.Send("status")["result"] is var status && status?["playerHasControl"]?.GetValue<bool>() != true)
         {
+            if (status?["mapGenerationError"] is JsonValue mapError)
+            {
+                throw new ScenarioException($"The quick-test map failed to generate: {mapError}");
+            }
+
             ThrowIfGone(game, deadline, "the map to load");
             Thread.Sleep(500);
         }

@@ -4,8 +4,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ArchotechHarness.Cli;
 
-/// <summary>Reads a scenario's class name and its [Mod], [RequiresMod], [Dlc] and [Window] attributes from source, before anything builds.</summary>
-/// <remarks>Attribute arguments must be literals. Paths are relative to the scenario file; the project's mods come first.</remarks>
+/// <summary>Reads a scenario's class name and its [Mod], [RequiresMod], [Dlc], [Window] and [Biome] attributes from source, before anything builds.</summary>
+/// <remarks>Attribute arguments must be literals, or nameof for [Biome]. Paths are relative to the scenario file; the project's mods come first.</remarks>
 public static class ScenarioClassReader
 {
     public const string BaseClassName = "HarnessScenario";
@@ -40,6 +40,7 @@ public static class ScenarioClassReader
         var dlcs = new List<string>();
         var requiredMods = new List<string>();
         var window = new WindowSize(1600, 900);
+        string? biome = null;
         foreach (var attribute in scenario.AttributeLists.SelectMany(l => l.Attributes))
         {
             var arguments = attribute.ArgumentList?.Arguments.ToList() ?? [];
@@ -57,12 +58,15 @@ public static class ScenarioClassReader
                 case "Window":
                     window = new WindowSize(Literal<int>(arguments[0], fullPath), Literal<int>(arguments[1], fullPath));
                     break;
+                case "Biome":
+                    biome = NameOrLiteral(arguments[0], fullPath);
+                    break;
             }
         }
 
         var distinctMods = mods.DistinctBy(m => m.Directory, StringComparer.OrdinalIgnoreCase).ToList();
         var distinctRequiredMods = requiredMods.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return new ScenarioClass(FullName(scenario), fullPath, project, distinctMods, dlcs, window, distinctRequiredMods);
+        return new ScenarioClass(FullName(scenario), fullPath, project, distinctMods, dlcs, window, distinctRequiredMods, biome);
     }
 
     private static ScenarioMod ReadMod(List<AttributeArgumentSyntax> arguments, string directory, string file)
@@ -80,6 +84,11 @@ public static class ScenarioClassReader
         argument.Expression is LiteralExpressionSyntax { Token.Value: T value }
             ? value
             : throw new ScenarioException($"{file}: scenario attribute arguments must be literals, not '{argument.Expression}'.");
+
+    private static string NameOrLiteral(AttributeArgumentSyntax argument, string file) =>
+        argument.Expression is InvocationExpressionSyntax { Expression: IdentifierNameSyntax { Identifier.Text: "nameof" } } nameOf
+            ? LastName(nameOf.ArgumentList.Arguments[0].Expression)
+            : Literal<string>(argument, file);
 
     private static string FullName(ClassDeclarationSyntax type)
     {
@@ -117,6 +126,7 @@ public static class ScenarioClassReader
     private static string LastName(SyntaxNode name) => name switch
     {
         QualifiedNameSyntax qualified => qualified.Right.Identifier.Text,
+        MemberAccessExpressionSyntax member => member.Name.Identifier.Text,
         SimpleNameSyntax simple => simple.Identifier.Text,
         _ => name.ToString(),
     };

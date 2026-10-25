@@ -102,7 +102,7 @@ public static class HtmlReport
         }
 
         AppendTimeline(html, report?["timeline"] as JsonArray);
-        AppendList(html, "Game errors", report?["gameErrors"]?.AsArray().Select(e => $"<pre class=\"bad\">{Encode(e?.ToString())}</pre>"));
+        AppendList(html, "Game errors", report?["gameErrors"]?.AsArray().OfType<JsonObject>().Select(GameError));
         foreach (var shot in report?["shots"]?.AsArray().Select(s => s?.ToString()).OfType<string>() ?? [])
         {
             var relative = Path.GetRelativePath(reportDirectory, shot).Replace('\\', '/');
@@ -140,6 +140,12 @@ public static class HtmlReport
         }
 
         html.Append("</table>");
+    }
+
+    private static string GameError(JsonObject error)
+    {
+        var allowed = error["allowed"]?.GetValue<bool>() == true;
+        return $"<pre class=\"{(allowed ? "muted" : "bad")}\">{error["count"]} &#215; {Encode(error["text"]?.ToString())}{(allowed ? " (allowed)" : "")}</pre>";
     }
 
     private static void AppendList(StringBuilder html, string title, IEnumerable<string>? items)

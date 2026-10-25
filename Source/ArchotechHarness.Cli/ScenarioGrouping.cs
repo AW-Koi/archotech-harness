@@ -1,6 +1,6 @@
 namespace ArchotechHarness.Cli;
 
-/// <summary>Splits scenarios into boots by their mods under test, required mods and DLC set, keeping the order groups first appear in.</summary>
+/// <summary>Splits scenarios into boots by their mods under test, required mods, DLC set and biome, keeping the order groups first appear in.</summary>
 public static class ScenarioGrouping
 {
     public static IReadOnlyList<ScenarioGroup> Group(IEnumerable<ScenarioClass> scenarios, RequiredModResolver resolver) =>
@@ -17,7 +17,8 @@ public static class ScenarioGrouping
                     first.Dlcs,
                     first.Scenario.Window,
                     group.Select(p => p.Scenario).ToList(),
-                    first.Required.SkipReason);
+                    first.Required.SkipReason,
+                    first.Scenario.Biome);
             })
             .ToList();
 
@@ -26,13 +27,15 @@ public static class ScenarioGrouping
         + "#" + string.Join('|', profile.Required.Mods.Select(m => m.PackageId).Order())
         + "#" + string.Join('|', profile.Dlcs)
         + "#" + profile.Scenario.Window
-        + "#" + profile.Required.SkipReason;
+        + "#" + profile.Required.SkipReason
+        + "#" + profile.Scenario.Biome;
 
     private static string Name(Profile profile)
     {
         var parts = profile.Scenario.Mods.Select(m => ModName(m.Directory)).Order(StringComparer.OrdinalIgnoreCase)
             .Concat(profile.Scenario.RequiredMods.Select(id => id.ToLowerInvariant()).Distinct().Order())
             .Concat(profile.Dlcs)
+            .Concat(profile.Scenario.Biome is { } biome ? [biome] : [])
             .ToList();
         return parts.Count == 0 ? "core" : string.Join('+', parts);
     }

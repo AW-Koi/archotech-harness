@@ -91,6 +91,22 @@ public sealed class ScenarioClassReaderTests : IDisposable
         Assert.Equal(["ferny.ProgressionEducation", "VanillaExpanded.VArmourE"], scenario.RequiredMods);
     }
 
+    [Theory]
+    [InlineData("\"TemperateForest\"")]
+    [InlineData("nameof(BiomeDefOf.TemperateForest)")]
+    public void Read_BiomeAttribute_SetsTheBiomeDefName(string argument)
+    {
+        _temp.WriteFile("MopMod/harness/Scenarios.csproj", "<Project />");
+        var file = _temp.WriteFile("MopMod/harness/InTheForest.cs", $$"""
+            [Biome({{argument}})]
+            public class InTheForest : HarnessScenario { public override Task Run() => Task.CompletedTask; }
+            """);
+
+        var scenario = ScenarioClassReader.Read(file);
+
+        Assert.Equal("TemperateForest", scenario.Biome);
+    }
+
     [Fact]
     public void Read_ScenarioWithoutAttributes_UsesTheDefaultProfile()
     {
@@ -103,6 +119,7 @@ public sealed class ScenarioClassReaderTests : IDisposable
         Assert.Empty(scenario.Mods);
         Assert.Empty(scenario.RequiredMods);
         Assert.Equal(new WindowSize(1600, 900), scenario.Window);
+        Assert.Null(scenario.Biome);
     }
 
     [Fact]

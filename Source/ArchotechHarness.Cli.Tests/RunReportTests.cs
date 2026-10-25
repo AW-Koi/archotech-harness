@@ -13,7 +13,8 @@ public sealed class RunReportTests : IDisposable
         {"passed":false,"seconds":2.25,"error":"TimeoutException: Timed out waiting for room.Filth().Count == 0.",
          "at":["at MopsTheFloor.Run() in Mops.cs:line 12"],
          "checks":[{"check":"janitor.HasThought(\"Spotless\") && x < 1","passed":false}],
-         "notes":{},"shots":[],"gameErrors":["Exception ticking Janitor"]}
+         "notes":{},"shots":[],"gameErrors":[{"text":"Exception ticking Janitor","count":343,"allowed":false},
+                        {"text":"Job 7 faulted","count":2,"allowed":true}]}
         """;
 
     private const string EducationMissing = "ferny.ProgressionEducation is not installed";
@@ -42,7 +43,7 @@ public sealed class RunReportTests : IDisposable
         Assert.Equal(1, run["failed"]!.GetValue<int>());
         var failed = run["runs"]!.AsArray().Single(r => r!["scenario"]!.GetValue<string>() == "MopMod.Scenarios.MopsTheFloor")!;
         Assert.Equal("TimeoutException: Timed out waiting for room.Filth().Count == 0.", failed["error"]!.GetValue<string>());
-        Assert.Equal("Exception ticking Janitor", failed["report"]!["gameErrors"]![0]!.GetValue<string>());
+        Assert.Equal("Exception ticking Janitor", failed["report"]!["gameErrors"]![0]!["text"]!.GetValue<string>());
     }
 
     [Fact]
@@ -69,6 +70,18 @@ public sealed class RunReportTests : IDisposable
         var html = File.ReadAllText(path);
         Assert.Contains("janitor.HasThought(&quot;Spotless&quot;) &amp;&amp; x &lt; 1", html);
         Assert.Contains("Exception ticking Janitor", html);
+    }
+
+    [Fact]
+    public void Html_GameErrors_ShowEachDistinctErrorWithItsCountAndWhetherItWasAllowed()
+    {
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("MopsTheFloor", FailedReport)]);
+
+        var html = File.ReadAllText(path);
+        Assert.Contains("<pre class=\"bad\">343 &#215; Exception ticking Janitor</pre>", html);
+        Assert.Contains("<pre class=\"muted\">2 &#215; Job 7 faulted (allowed)</pre>", html);
     }
 
     [Fact]

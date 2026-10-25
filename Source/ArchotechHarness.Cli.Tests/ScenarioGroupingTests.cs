@@ -68,6 +68,18 @@ public sealed class ScenarioGroupingTests : IDisposable
     }
 
     [Fact]
+    public void Group_DifferentBiomes_SplitIntoSeparateBootsNamedForTheBiome()
+    {
+        var anywhere = Scenario("Anywhere", [MopMod], [], []);
+        var forest = Scenario("Forest", [MopMod], [], []) with { Biome = "TemperateForest" };
+
+        var groups = ScenarioGrouping.Group([anywhere, forest], _resolver);
+
+        Assert.Equal(["MopMod", "MopMod+TemperateForest"], groups.Select(g => g.Name));
+        Assert.Equal("TemperateForest", groups[1].Biome);
+    }
+
+    [Fact]
     public void Group_NoModsOrDlcs_IsNamedCore()
     {
         var groups = ScenarioGrouping.Group([Scenario("Smoke", [], [], [])], _resolver);

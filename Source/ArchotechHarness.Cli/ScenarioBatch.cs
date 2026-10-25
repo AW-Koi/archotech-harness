@@ -288,7 +288,7 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
 
                     if (!_freshGame)
                     {
-                        setup = ScenarioInvoker.NewGame(new HarnessClient(session.Port));
+                        setup = ScenarioInvoker.NewGame(new HarnessClient(session.Port), group.Biome);
                     }
 
                     _freshGame = false;
@@ -331,7 +331,7 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
             batch.Progress($"Worker {id}: booting for {group.Name}.");
             _group = group;
             _session = batch.Sessions.Start(
-                new LaunchOptions(group.Dlcs, group.Mods.Select(m => m with { Build = null }).ToList(), group.RequiredMods, group.Window, hidden ? 0 : options.Port, hidden),
+                new LaunchOptions(group.Dlcs, group.Mods.Select(m => m with { Build = null }).ToList(), group.RequiredMods, group.Window, hidden ? 0 : options.Port, hidden, group.Biome),
                 id, checkBusy: false);
             _freshGame = true;
             batch.RecordLoad(group, _session);

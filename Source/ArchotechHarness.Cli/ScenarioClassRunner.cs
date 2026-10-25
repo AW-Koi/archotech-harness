@@ -51,7 +51,7 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
 
         session ??= sessions.Start(new LaunchOptions(
             scenario.Dlcs.Concat(required.Dlcs).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            scenario.Mods.Select(m => m with { Build = null }).ToList(), required.Mods, scenario.Window, port));
+            scenario.Mods.Select(m => m with { Build = null }).ToList(), required.Mods, scenario.Window, port, Biome: scenario.Biome));
         var report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory, videoFps);
         report["scenario"] = scenario.TypeName;
         report["runDirectory"] = runDirectory;
