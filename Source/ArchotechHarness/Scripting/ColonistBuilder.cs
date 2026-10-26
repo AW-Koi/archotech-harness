@@ -6,7 +6,8 @@ using Verse;
 
 namespace ArchotechHarness.Scripting;
 
-/// <summary>A colonist to generate with Spawn.Colonist(); call Spawn() to put it on the map.</summary>
+/// <summary>A colonist to generate with Spawn.Colonist(); call Spawn() to put it on the map. It can do all work unless
+/// IncapableOf, a backstory, a trait or a xenotype given here disables some.</summary>
 public sealed class ColonistBuilder
 {
     private readonly PendingBuilders.Token _token;

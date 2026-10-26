@@ -46,7 +46,7 @@ public static class SpawnPawnCommand
         for (var attempt = 0; attempt < GenerationAttempts && pawn == null; attempt++)
         {
             var candidate = PawnGenerator.GeneratePawn(Request(plan));
-            if (workTypes.All(w => !candidate.WorkTypeIsDisabled(w)))
+            if (CanDoAllWork(candidate, plan) && workTypes.All(w => !candidate.WorkTypeIsDisabled(w)))
             {
                 pawn = candidate;
             }
@@ -54,7 +54,7 @@ public static class SpawnPawnCommand
 
         if (pawn == null)
         {
-            throw new HarnessException($"No {plan.Kind.defName} able to do {string.Join(", ", workTypes)} in {GenerationAttempts} attempts.");
+            throw new HarnessException($"No {plan.Kind.defName} able to do all work{(workTypes.Count > 0 ? ", " + string.Join(", ", workTypes) + " included," : string.Empty)} in {GenerationAttempts} attempts.");
         }
 
         if (plan.Nickname != null && pawn.Name is NameTriple full)
@@ -101,6 +101,21 @@ public static class SpawnPawnCommand
         }
 
         return pawn;
+    }
+
+    /// <summary>Whether the roll left all work enabled, apart from what a requested xenotype's genes disable.</summary>
+    private static bool CanDoAllWork(Pawn candidate, ColonistPlan plan)
+    {
+        var allowed = WorkTags.None;
+        if (plan.Xenotype != null && candidate.genes != null)
+        {
+            foreach (var gene in candidate.genes.GenesListForReading)
+            {
+                allowed |= gene.def.disabledWorkTags;
+            }
+        }
+
+        return (candidate.story.DisabledWorkTagsBackstoryTraitsAndGenes & ~allowed) == WorkTags.None;
     }
 
     private static PawnGenerationRequest Request(ColonistPlan plan)
