@@ -5,7 +5,7 @@ using Verse.AI.Group;
 
 namespace ArchotechHarness.Scripting;
 
-/// <summary>Keeps sleeping lords asleep through clamor and wake-up signals while the running script is calm.</summary>
+/// <summary>Keeps sleeping lords asleep through clamor and wake-up signals while the running script keeps the world asleep.</summary>
 [HarmonyPatch]
 public static class CalmLordWakePatch
 {
@@ -15,5 +15,5 @@ public static class CalmLordWakePatch
         AccessTools.Method(typeof(Lord), nameof(Lord.Notify_DormancyWakeup)),
     ];
 
-    public static bool Prefix() => ScriptSession.Current is not { Calm: true };
+    public static bool Prefix() => ScriptSession.Current is not { KeepAsleep: true };
 }

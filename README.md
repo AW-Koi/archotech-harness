@@ -73,7 +73,11 @@ Building is best-effort and later commands win. A building, plant, room, floor o
 
 ### Laying out a colony
 
-- `World.Calm()` stops incidents (raids, visitors, mad animals, weather events), wake-ups, signal actions such as ambushes, and letters for the rest of the scenario, and keeps the weather clear. Call it first.
+- `World.Calm()` stops incidents (raids, visitors, mad animals, weather events), wake-ups, signal actions such as ambushes, letters and weather changes for the rest of the scenario, and clears the weather. Call it first. Chain an `Allow` call to let one part carry on:
+  - `.AllowIncidents()` lets the storyteller, queued and quest incidents fire.
+  - `.AllowWakeUps()` lets dormant pawns, buildings and sleeping lords wake, and signal actions act.
+  - `.AllowLetters()` lets letters arrive, for a scenario that checks one, such as a raid's.
+  - `.AllowWeather()` lets the weather change.
 - `World.RemoveHostiles()` removes every pawn hostile to the player, dormant pawns such as ancient-danger sleepers, and strangers held in caskets and pods. It also removes what wakes or spawns threats: triggers, signal actions, mech cluster and other hostile buildings, hives and spawners. It returns how many things it removed.
 - `Build.Clearing(rect)` makes an area open, walkable and unroofed. It removes buildings (ancient ones included), rock, plants, items and every pawn that isn't the player's, and turns water into soil.
 - `Build.Room().Covering(rect)` sets a room's bounds, walls included, in place of `.CenteredOn` and `.Size`. Call `.WithDoor(side)` or `.WithDoorAt(cell)` once per door. A door cell off the walls, or on a corner, fails the build.
@@ -353,7 +357,8 @@ When an error stops the game's first data load, the game loads its data a second
 | `pawn.GrantTitle`, `pawn.AssignRole`, `pawn.Relate`, `pawn.SetOpinionOf` | Sets a pawn's title, role, relations and opinions. |
 | `room.Scatter(def, count)`, `room.Filth(defs)` | Spreads filth over a room, or lists the filth in it. |
 | `World.Map`, `World.Center`, `World.Filth`, `World.Things`, `World.Pawn` | The current map and queries over it. |
-| `World.Calm()`, `World.RemoveHostiles()`, `World.Home(rect)` | Stops incidents and keeps clear weather, removes hostile and dormant pawns, or marks home area. |
+| `World.Calm()`, `World.RemoveHostiles()`, `World.Home(rect)` | Stops incidents, wake-ups, letters and weather changes, removes hostile and dormant pawns, or marks home area. |
+| `World.Calm().AllowIncidents()`, `.AllowWakeUps()`, `.AllowLetters()`, `.AllowWeather()` | Lets one part of a calm world carry on. |
 | `Colonists.All`, `Colonists.RemoveAllExcept(pawns)` | The colonists on the map. |
 | `pawn.CurrentJob()`, `pawn.SetWork`, `pawn.HasThought`, `pawn.Memories`, `pawn.FloatMenuAt(cell)` | Pawn shortcuts. |
 | `Camera.Look`, `Camera.Frame(room)`, `Camera.Frame(rect)`, `Camera.Follow(pawn)` | Points the camera. |

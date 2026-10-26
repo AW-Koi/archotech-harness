@@ -63,11 +63,15 @@ public static class World
         }
     }
 
-    /// <summary>Stops incidents, wake-ups, signal actions and letters for the rest of the script, ends active conditions and sets clear weather that holds.</summary>
-    public static void Calm()
+    /// <summary>Stops incidents, wake-ups, signal actions, letters and weather changes for the rest of the script, and clears the
+    /// weather. Each Allow call on the result lets one of them carry on; Spawn.Raid fires regardless.</summary>
+    public static CalmBuilder Calm()
     {
         var session = ScriptSession.Current ?? throw new InvalidOperationException("No harness script is running.");
-        session.Calm = true;
+        session.NoIncidents = true;
+        session.KeepAsleep = true;
+        session.NoLetters = true;
+        session.HoldWeather = true;
         session.Timeline.Add("world", "calm");
         foreach (var condition in Map.gameConditionManager.ActiveConditions.Concat(Find.World.gameConditionManager.ActiveConditions).ToList())
         {
@@ -79,6 +83,7 @@ public static class World
         weather.TransitionTo(WeatherDefOf.Clear);
         weather.TransitionTo(WeatherDefOf.Clear);
         weather.curWeatherAge = (int)WeatherManager.TransitionTicks;
+        return new CalmBuilder(session);
     }
 
     /// <summary>Removes hostile and dormant pawns, strangers held in containers, and whatever wakes or spawns threats; returns how many.</summary>

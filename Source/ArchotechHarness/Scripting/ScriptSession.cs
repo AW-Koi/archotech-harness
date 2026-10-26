@@ -41,8 +41,17 @@ public sealed class ScriptSession
 
     public bool AnyCheckFailed { get; private set; }
 
-    /// <summary>While set, no incidents, wake-ups, signal actions or letters happen and the weather stays as it is.</summary>
-    public bool Calm { get; set; }
+    /// <summary>While set, the storyteller, queued and quest incidents don't fire.</summary>
+    public bool NoIncidents { get; set; }
+
+    /// <summary>While set, dormant pawns, buildings and sleeping lords stay asleep, and signal actions don't act.</summary>
+    public bool KeepAsleep { get; set; }
+
+    /// <summary>While set, letters are dropped.</summary>
+    public bool NoLetters { get; set; }
+
+    /// <summary>While set, the weather stays as it is.</summary>
+    public bool HoldWeather { get; set; }
 
     public PendingBuilders Builders { get; }
 
