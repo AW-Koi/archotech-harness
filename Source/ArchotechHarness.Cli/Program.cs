@@ -9,7 +9,7 @@ public static class Program
         archo: drive RimWorld 1.7 through the Archotech Harness mod.
 
           archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
-          archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--video] [--no-panel] [--out DIR] [--port N]
+          archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--video] [--no-panel] [--allow-load-errors] [--out DIR] [--port N]
           archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--video] [--no-panel] [--allow-load-errors] [--out DIR]
           archo send COMMAND ['{"json":"args"}'] [--session ID]
           archo capture PATH.png [--session ID]
@@ -60,7 +60,13 @@ public static class Program
     {
         var mods = options.All("--mod").Select(dir => new ScenarioMod(Path.GetFullPath(dir), null)).ToList();
         var session = sessions.Start(new LaunchOptions(options.All("--dlc"), mods, [], options.Window(), options.Port()));
-        return Print(new JsonObject { ["pid"] = session.GameProcessId, ["port"] = session.Port, ["mapLoaded"] = true });
+        var load = new GameLoadReader(sessions, Console.Error.WriteLine).Read("archo launch", mods, session);
+        if (load.Errors.Count > 0)
+        {
+            Console.Error.WriteLine(string.Join(Environment.NewLine, load.Summary()));
+        }
+
+        return Print(new JsonObject { ["pid"] = session.GameProcessId, ["port"] = session.Port, ["mapLoaded"] = true, ["gameLoad"] = load.ToCompactJson() });
     }
 
     private static int Run(HarnessPaths paths, SessionManager sessions, CommandLineOptions options)
@@ -71,7 +77,7 @@ public static class Program
             : Path.Combine(paths.RunsDirectory, $"{Path.GetFileNameWithoutExtension(file)}-{DateTime.Now:yyyyMMdd-HHmmss}");
         WaitIfAsked(sessions, options);
         PruneOldRuns(paths, sessions);
-        var failed = !new ScenarioClassRunner(sessions, Console.Out, Console.Error) { DebugPanel = !options.Flag("--no-panel") }
+        var failed = !new ScenarioClassRunner(sessions, Console.Out, Console.Error) { DebugPanel = !options.Flag("--no-panel"), AllowLoadErrors = options.Flag("--allow-load-errors") }
             .Run(file, runDirectory, options.Flag("--keep-open"), options.Flag("--attach"), options.Port(), options.VideoFps());
         return failed ? 1 : 0;
     }

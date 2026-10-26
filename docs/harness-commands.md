@@ -22,6 +22,7 @@ Cells are `[x, z]` or `"center"`. Rectangles are `[x, z, width, height]`.
 | `probe` | `name`, `args` | The probe's result. |
 | `listProbes` | none | All probe and command names. |
 | `log` | `minLevel` (`message`, `warning`, `error`), `count`, `contains` | `errors`, `warnings` and the matching `entries`. |
+| `loadErrors` | none | `errors`: every error logged from the harness's start until the first `loadErrors`. Later calls return the same list. |
 | `newGame` | `mapSize`, `planetCoverage`, `seed` | Replaces the game with a fresh quick-test colony. |
 | `runScenario` | `assembly`, `entryType`, `outputDirectory`, `recordFps`, `debugPanel` | Runs a scenario class from a built assembly and replies with its report. `debugPanel` shows the scenario debugger unless `recordFps` is above 0. |
 | `debugger` | `action` (`state`, `pause`, `resume`, `step`), `since` | The running scenario's `scenario`, `paused`, `stepping`, `waiting`, `stepCount` and its timeline `steps` from index `since`. |

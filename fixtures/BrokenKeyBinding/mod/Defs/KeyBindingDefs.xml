@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <KeyBindingDef>
+    <defName>BrokenKeyBinding_Tool</defName>
+    <label>broken key binding tool</label>
+    <category>Misc</category>
+    <defaultKeyCodeA>Backslash</defaultKeyCodeA>
+  </KeyBindingDef>
+</Defs>

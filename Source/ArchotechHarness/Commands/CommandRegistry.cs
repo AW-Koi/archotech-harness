@@ -26,6 +26,7 @@ public static class CommandRegistry
             ["probe"] = ProbeCommand.Run,
             ["listProbes"] = ProbeCommand.List,
             ["log"] = LogCommand.Run,
+            ["loadErrors"] = LoadErrorsCommand.Run,
             ["quit"] = QuitCommand.Run,
             ["runScenario"] = RunScenarioCommand.Run,
             ["newGame"] = NewGameCommand.Run,

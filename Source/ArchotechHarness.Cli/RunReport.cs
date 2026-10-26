@@ -29,16 +29,7 @@ public static class RunReport
             ["outputDirectory"] = o.OutputDirectory,
             ["report"] = o.Report?.DeepClone(),
         }).ToArray()),
-        ["gameLoad"] = new JsonArray((loads ?? []).Select(l => (JsonNode)new JsonObject
-        {
-            ["group"] = l.Group,
-            ["errors"] = new JsonArray(l.Errors.Select(e => (JsonNode)new JsonObject
-            {
-                ["text"] = e.Text,
-                ["mod"] = e.Mod,
-                ["modUnderTest"] = e.FromModUnderTest,
-            }).ToArray()),
-        }).ToArray()),
+        ["gameLoad"] = new JsonArray((loads ?? []).Select(l => (JsonNode)l.ToJson()).ToArray()),
     };
 
     public static void WriteJson(string path, IReadOnlyList<ScenarioOutcome> outcomes, IReadOnlyList<GameLoad>? loads = null)

@@ -3,11 +3,15 @@ using System.Text.Json.Nodes;
 namespace ArchotechHarness.Cli;
 
 /// <summary>Builds a scenarios project, runs one HarnessScenario class in the game and prints the report.</summary>
-/// <remarks>It boots its own session, or with attach uses the running one and leaves it open.</remarks>
+/// <remarks>It boots its own session, or with attach uses the running one and leaves it open.
+/// Errors that the mods under test logged while the game loaded fail the run before the scenario starts.</remarks>
 public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter output, TextWriter progress)
 {
     /// <summary>Shows the scenario debugger in the game while the scenario runs; true without it.</summary>
     public bool DebugPanel { get; init; } = true;
+
+    /// <summary>Runs the scenario even when a mod under test logged errors while the game loaded.</summary>
+    public bool AllowLoadErrors { get; init; }
 
     /// <summary>Returns false when the scenario failed; a scenario skipped for a missing required mod returns true.</summary>
     public bool Run(string sourceFile, string runDirectory, bool keepOpen, bool attach, int port, double videoFps = 0)
@@ -55,7 +59,24 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
         session ??= sessions.Start(new LaunchOptions(
             scenario.Dlcs.Concat(required.Dlcs).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             scenario.Mods.Select(m => m with { Build = null }).ToList(), required.Mods, scenario.Window, port, Biome: scenario.Biome));
-        var report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory, videoFps, DebugPanel);
+        var load = new GameLoadReader(sessions, progress.WriteLine).Read(scenario.TypeName[(scenario.TypeName.LastIndexOf('.') + 1)..], scenario.Mods, session);
+        if (load.Errors.Count > 0)
+        {
+            progress.WriteLine(string.Join(Environment.NewLine, load.Summary()));
+        }
+
+        JsonObject report;
+        if (load.Failure(AllowLoadErrors) is { } loadFailure)
+        {
+            progress.WriteLine(loadFailure);
+            report = new JsonObject { ["passed"] = false, ["error"] = loadFailure };
+        }
+        else
+        {
+            report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory, videoFps, DebugPanel);
+        }
+
+        report["gameLoad"] = load.ToCompactJson();
         report["scenario"] = scenario.TypeName;
         report["runDirectory"] = runDirectory;
         if (startsSession && !keepOpen)

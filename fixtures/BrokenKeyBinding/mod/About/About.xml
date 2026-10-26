@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Broken Key Binding</name>
+  <author>Archotech Harness</author>
+  <packageId>ArchotechHarness.Fixtures.BrokenKeyBinding</packageId>
+  <supportedVersions>
+    <li>1.7</li>
+  </supportedVersions>
+  <description>A test fixture: its key binding names a category that doesn't exist, so the game's first data load fails.</description>
+</ModMetaData>

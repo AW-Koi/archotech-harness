@@ -303,7 +303,7 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 | `archo test --retries N` | Retries a failed scenario up to N times. |
 | `archo test --workers N` | Runs N games at once. `--workers auto` picks a number that fits your machine. |
 | `archo test --no-panel` | Runs without the scenario debugger panel. `run` takes it too. |
-| `archo test --allow-load-errors` | Runs the scenarios even when a mod under test logged errors while the game loaded. See [Load errors](#load-errors). |
+| `archo test --allow-load-errors` | Runs the scenarios even when a mod under test logged errors while the game loaded. `run` takes it too. See [Load errors](#load-errors). |
 | `archo test --video` | Records a video of each scenario into the report. It needs ffmpeg, on the PATH, installed with WinGet, or named by the `FFMPEG` environment variable. `--video-fps N` sets the frame rate (default 5). `run` takes it too. |
 | `archo launch` | Starts a game and leaves it running for `send`. `--mod DIR` and `--dlc NAME` choose what it loads. |
 | `archo send COMMAND ['{json}']` | Sends one command to the running game, such as `status`. |
@@ -318,7 +318,11 @@ Before each `run` or `test`, `archo` deletes the oldest folders in `.harness/run
 
 ### Load errors
 
-When `archo test` boots a game, it reads the errors the game logged while it loaded and set up its first colony, such as failed patch operations, config errors and exceptions. It blames an error on a mod under test when the error starts with the mod's name or package id in brackets, names one of its defs or def files, names a file in its folder, or names a type in one of its assembly namespaces. An error from a mod under test fails every scenario in that game's group, and the scenario error quotes the first three. Errors from the base game or other mods show as warnings in the console and the report. Pass `--allow-load-errors` to run the scenarios anyway.
+When `archo run` or `archo test` boots a game, it reads every error the game logged while it loaded and set up its first colony, such as failed patch operations, config errors and exceptions. It blames an error on a mod under test when the error starts with the mod's name or package id in brackets, names one of its defs or def files, names a file in its folder, or names a type in one of its assembly namespaces. An error from a mod under test fails the run, or every scenario in that game's group, and the failure quotes the first three. Errors from the base game or other mods show as warnings in the console and the report. Pass `--allow-load-errors` to run the scenarios anyway.
+
+When an error stops the game's first data load, the game loads its data a second time on top of the first and logs an error for every def it adds twice. The console and the report name the mod that broke the first load and count the errors from the second, so fix the first error and the rest go with it.
+
+`archo launch` reads the errors once its game has loaded and shows them as warnings. `archo run --attach` then checks the same errors against the scenario's mods. A failed check with `--keep-open` leaves the game running.
 
 ## Reference
 

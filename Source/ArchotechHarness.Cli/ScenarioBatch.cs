@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Net.Sockets;
 using System.Text.Json.Nodes;
 
 namespace ArchotechHarness.Cli;
@@ -10,8 +9,6 @@ namespace ArchotechHarness.Cli;
 /// Errors that mods under test log while a group's game loads fail that group's scenarios. Groups missing a required mod are skipped.</remarks>
 public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, TextWriter progress)
 {
-    private const int LoggedLoadErrors = 5;
-
     private readonly object _outputLock = new();
 
     private readonly ConcurrentDictionary<ScenarioGroup, GameLoad> _loads = new();
@@ -100,50 +97,11 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
             return;
         }
 
-        var modsUnderTest = group.Mods.Select(m => ModFingerprint.Read(m.Directory, Sessions.InstalledDirectory(m.Directory))).ToList();
-        var load = new GameLoad(group.Name, ReadLoggedErrors(session).Select(text => LoadErrorAttribution.Attribute(text, modsUnderTest)).ToList());
-        if (!_loads.TryAdd(group, load) || load.Errors.Count == 0)
+        var load = new GameLoadReader(Sessions, Progress).Read(group.Name, group.Mods, session);
+        if (_loads.TryAdd(group, load) && load.Errors.Count > 0)
         {
-            return;
+            Progress(string.Join(Environment.NewLine, load.Summary()));
         }
-
-        var lines = new List<string>
-        {
-            $"Game load for {group.Name}: {load.FromModsUnderTest.Count} error(s) from mods under test, " +
-            $"{load.Errors.Count - load.FromModsUnderTest.Count} from the base game or other mods.",
-        };
-        foreach (var fromModUnderTest in new[] { true, false })
-        {
-            var errors = load.Errors.Where(e => e.FromModUnderTest == fromModUnderTest).ToList();
-            lines.AddRange(errors.Take(LoggedLoadErrors).Select(e =>
-                $"  {(fromModUnderTest ? "Load error" : "Load warning")} ({e.Mod ?? "base game or another mod"}): {GameLoad.FirstLine(e.Text)}"));
-            if (errors.Count > LoggedLoadErrors)
-            {
-                lines.Add($"  ...and {errors.Count - LoggedLoadErrors} more; see report.html.");
-            }
-        }
-
-        Progress(string.Join(Environment.NewLine, lines));
-    }
-
-    private IReadOnlyList<string> ReadLoggedErrors(SessionState session)
-    {
-        try
-        {
-            var response = new HarnessClient(session.Port).Send("log", new JsonObject { ["minLevel"] = "error", ["count"] = 100000 });
-            if (response["ok"]?.GetValue<bool>() == true)
-            {
-                return response["result"]?["entries"]?.AsArray().Select(e => e?["text"]?.ToString()).OfType<string>().ToList() ?? [];
-            }
-
-            Progress($"Could not read the game's load errors: {response["error"]}");
-        }
-        catch (Exception e) when (e is IOException or SocketException)
-        {
-            Progress($"Could not read the game's load errors: {e.Message}");
-        }
-
-        return [];
     }
 
     /// <summary>Keeps the restore report of whichever session ended last.</summary>

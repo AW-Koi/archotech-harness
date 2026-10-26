@@ -63,8 +63,11 @@ public static class HtmlReport
 
         foreach (var load in loads.Where(l => l.Errors.Count > 0))
         {
-            AppendList(html, Encode(load.Group), load.Errors.Select(e =>
-                $"<span class=\"muted\">{Encode(e.Mod ?? "base game or another mod")}</span><pre class=\"{(e.FromModUnderTest ? "bad" : "warn")}\">{Encode(e.Text)}</pre>"));
+            var explanation = load.SecondDataLoadExplanation is { } text
+                ? [$"<p class=\"{(load.FirstDataLoadBrokenBy.Count > 0 ? "bad" : "warn")}\">{Encode(text)}</p>"]
+                : Array.Empty<string>();
+            AppendList(html, Encode(load.Group), explanation.Concat(load.Errors.Select(e =>
+                $"<span class=\"muted\">{Encode(e.Mod ?? "base game or another mod")}</span><pre class=\"{(e.FromModUnderTest ? "bad" : "warn")}\">{Encode(e.Text)}</pre>")));
         }
     }
 

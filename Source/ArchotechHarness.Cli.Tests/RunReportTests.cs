@@ -27,6 +27,14 @@ public sealed class RunReportTests : IDisposable
         new LoadError("Getting apparel graphic with undefined body type.", null, FromModUnderTest: false),
     ]);
 
+    private static readonly GameLoad BrokenFirstLoad = GameLoad.FromLog("MopMod",
+        [
+            "Could not resolve cross-reference: No Verse.KeyBindingCategoryDef named Misc found to give to Verse.KeyBindingDef MopMod_Tool",
+            "LoadDefs called with already existing def packages",
+            "Mod Ludeon.RimWorld has multiple Verse.ThingDefs named Steel. Skipping.",
+        ],
+        [new ModFingerprint("Mop Mod", "TerraIncognita.MopMod", [], new HashSet<string> { "MopMod_Tool" }, new HashSet<string>(), new HashSet<string>())]);
+
     private readonly TempDirectory _temp = new();
 
     public void Dispose() => _temp.Dispose();
@@ -182,6 +190,30 @@ public sealed class RunReportTests : IDisposable
         Assert.Contains("<h2>Game load</h2>", html);
         Assert.Contains("<li><span class=\"muted\">Mop Mod</span><pre class=\"bad\">[Mop Mod] Patch operation failed</pre></li>", html);
         Assert.Contains("<li><span class=\"muted\">base game or another mod</span><pre class=\"warn\">Getting apparel graphic with undefined body type.</pre></li>", html);
+    }
+
+    [Fact]
+    public void Json_GameLoadAfterASecondDataLoad_SaysWhoBrokeTheFirst()
+    {
+        var path = _temp.Combine("run.json");
+
+        RunReport.WriteJson(path, [Outcome("SweepsTheHall", PassedReport)], [BrokenFirstLoad]);
+
+        var gameLoad = JsonNode.Parse(File.ReadAllText(path))!["gameLoad"]![0]!;
+        Assert.Equal("""{"brokenBy":["Mop Mod"],"errors":2}""", gameLoad["secondDataLoad"]!.ToJsonString());
+    }
+
+    [Fact]
+    public void Html_GameLoadAfterASecondDataLoad_ExplainsIt()
+    {
+        var path = _temp.Combine("report.html");
+
+        HtmlReport.Write(path, [Outcome("SweepsTheHall", PassedReport)], [BrokenFirstLoad]);
+
+        Assert.Contains(
+            "<li><p class=\"bad\">Mop Mod broke the game&#39;s first data load, so the game loaded its data a second time on top of it and added every def twice; " +
+            "2 errors come from that second load.</p></li>",
+            File.ReadAllText(path));
     }
 
     [Fact]

@@ -1,5 +1,7 @@
+using System.Linq;
 using ArchotechHarness.Commands;
 using ArchotechHarness.Probes;
+using ArchotechHarness.Scripting;
 using ArchotechHarness.Server;
 using HarmonyLib;
 using Verse;
@@ -13,6 +15,11 @@ public sealed class ArchotechHarnessMod : Mod
 
     public ArchotechHarnessMod(ModContentPack content) : base(content)
     {
+        foreach (var earlier in Log.Messages.Where(m => m.type == LogMessageType.Error))
+        {
+            LoadErrorLog.Current.Add(earlier.text);
+        }
+
         new Harmony("TerraIncognita.ArchotechHarness").PatchAll(typeof(ArchotechHarnessMod).Assembly);
         var port = GenCommandLine.TryGetCommandLineArg("harnessPort", out var value) ? value : DefaultPort;
         StartingTile.Biome = GenCommandLine.TryGetCommandLineArg("harnessBiome", out var biome) ? biome : null;
