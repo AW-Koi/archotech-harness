@@ -27,7 +27,7 @@ public static class Ideoligion
         }
 
         var ideo = colony.ideos.PrimaryIdeo;
-        foreach (var pawn in World.Map.mapPawns.FreeColonistsSpawned)
+        foreach (var pawn in World.Map.mapPawns.FreeColonistsSpawned.ToList())
             pawn.ideo?.SetIdeo(ideo);
 
         return ideo;
