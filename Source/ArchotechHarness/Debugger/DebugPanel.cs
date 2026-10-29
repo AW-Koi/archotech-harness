@@ -7,7 +7,8 @@ using Verse;
 
 namespace ArchotechHarness.Debugger;
 
-/// <summary>Draws the scenario debugger, a Dear ImGui window over the game listing the steps with Pause, Resume and Step.</summary>
+/// <summary>Draws the scenario debugger, a Dear ImGui window over the game listing the steps with Pause, Resume and Step.
+/// It starts collapsed, with the scenario and its state in the title bar.</summary>
 /// <remarks>The game's ImGui host feeds ImGui no input, so the panel feeds it the mouse itself.</remarks>
 public static class DebugPanel
 {
@@ -47,7 +48,8 @@ public static class DebugPanel
         var size = new float2(Width, display.Y * 0.6f);
         ImGui.SetNextWindowPos(in position, ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowSize(in size, ImGuiCond.FirstUseEver);
-        if (ImGui.Begin("Scenario debugger", ImGuiWindowFlags.NoCollapse))
+        ImGui.SetNextWindowCollapsed(true, ImGuiCond.FirstUseEver);
+        if (ImGui.Begin(Title(session)))
         {
             DrawHeader(session);
             DrawSteps(session);
@@ -59,6 +61,14 @@ public static class DebugPanel
         var scale = Prefs.UIScale;
         ScreenRect = new Rect(at.X / scale, at.Y / scale, extent.X / scale, extent.Y / scale);
         PanelBlocker.Follow(ScreenRect);
+    }
+
+    /// <summary>The scenario and its state; the part after ### keeps the window's identity as the state changes.</summary>
+    private static string Title(ScriptSession session)
+    {
+        var control = session.Control;
+        var state = control.Paused ? "paused" : control.Stepping ? "stepping" : "running";
+        return (session.ScenarioName ?? "Scenario") + ": " + state + "###Scenario debugger";
     }
 
     private static void FeedMouse(ImGuiIOPtr io)
