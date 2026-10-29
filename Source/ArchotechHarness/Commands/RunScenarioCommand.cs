@@ -48,7 +48,7 @@ public static class RunScenarioCommand
             session.StartRecording(System.IO.Path.Combine(session.OutputDirectory, "frames"), fps);
         }
 
-        session.HeldSpeed = TimeSpeed.Paused;
+        session.Speed.Ask(TimeSpeed.Paused);
         var pauseDeadline = DateTime.UtcNow + PauseTimeout;
         Task scenario = null;
 

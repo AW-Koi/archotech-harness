@@ -4,7 +4,7 @@ using Verse;
 
 namespace ArchotechHarness.Scripting;
 
-/// <summary>Game time. The speed set here holds until changed, even while the game refuses input.</summary>
+/// <summary>Game time. The speed set here applies as soon as the game can take it; anything may change it after.</summary>
 public static class Clock
 {
     public static int Tick => Find.TickManager.TicksGame;
@@ -15,7 +15,7 @@ public static class Clock
         set
         {
             var session = ScriptSession.Current ?? throw new InvalidOperationException("No harness script is running.");
-            session.HeldSpeed = value;
+            session.Speed.Ask(value);
             session.Timeline.Add("speed", value.ToString());
             Find.TickManager.CurTimeSpeed = value;
         }

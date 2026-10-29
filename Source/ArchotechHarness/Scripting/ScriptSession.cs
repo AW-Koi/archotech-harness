@@ -8,7 +8,7 @@ using Verse;
 
 namespace ArchotechHarness.Scripting;
 
-/// <summary>The running script: its output folder, waits, held game speed and what it recorded.</summary>
+/// <summary>The running script: its output folder, waits, requested game speed and what it recorded.</summary>
 public sealed class ScriptSession
 {
     private readonly List<(Func<bool> Done, TaskCompletionSource<bool> Signal, DateTime Deadline, string What)> _waits = new();
@@ -25,6 +25,8 @@ public sealed class ScriptSession
     private int _frameIndex;
 
     private int _progress;
+    private bool _forcedNormalSpeedWas;
+    private AutomaticPauseMode _automaticPauseWas;
 
     private ScriptSession(string outputDirectory)
     {
@@ -37,7 +39,8 @@ public sealed class ScriptSession
 
     public string OutputDirectory { get; }
 
-    public TimeSpeed? HeldSpeed { get; set; }
+    /// <summary>The speed the script asked for, applied once the game can take it.</summary>
+    public SpeedRequest Speed { get; } = new();
 
     public bool AnyCheckFailed { get; private set; }
 
@@ -93,6 +96,7 @@ public sealed class ScriptSession
     public void ResumeScript()
     {
         Control.Resume();
+        Speed.AskAgain();
         Timeline.Add("debugger", "resumed");
     }
 
@@ -111,7 +115,18 @@ public sealed class ScriptSession
         return progress;
     }
 
-    public static ScriptSession Begin(string outputDirectory) => Current = new ScriptSession(outputDirectory);
+    /// <summary>Starts a session. While it runs, the game neither forces normal speed on threats nor pauses itself on letters,
+    /// so the script alone sets the speed.</summary>
+    public static ScriptSession Begin(string outputDirectory)
+    {
+        Current?.End();
+        var session = new ScriptSession(outputDirectory);
+        session._forcedNormalSpeedWas = DebugViewSettings.neverForceNormalSpeed;
+        session._automaticPauseWas = Prefs.AutomaticPauseMode;
+        DebugViewSettings.neverForceNormalSpeed = true;
+        Prefs.AutomaticPauseMode = AutomaticPauseMode.Never;
+        return Current = session;
+    }
 
     public Task WaitFor(Func<bool> done, double timeoutSeconds, string what)
     {
@@ -134,8 +149,7 @@ public sealed class ScriptSession
             throw new InvalidOperationException("A fast-forward is already running; await it first.");
         }
 
-        _fastForward = new FastForwardRun(done, Find.TickManager.TicksGame + maxTicks, failAtMax, what, HeldSpeed);
-        HeldSpeed = TimeSpeed.Ultrafast;
+        _fastForward = new FastForwardRun(done, Find.TickManager.TicksGame + maxTicks, failAtMax, what, Speed.Last);
         Find.TickManager.CurTimeSpeed = TimeSpeed.Ultrafast;
         return _fastForward.Signal.Task;
     }
@@ -149,7 +163,7 @@ public sealed class ScriptSession
         _nextFrame = DateTime.UtcNow;
     }
 
-    /// <summary>Records video frames and, unless paused, re-applies the held speed and completes finished waits; runs once per frame on the main thread.</summary>
+    /// <summary>Records video frames and, unless paused, applies a newly asked speed and completes finished waits; runs once per frame on the main thread.</summary>
     public void Tick()
     {
         if (_framesDirectory != null && DateTime.UtcNow >= _nextFrame)
@@ -163,9 +177,7 @@ public sealed class ScriptSession
             return;
         }
 
-        if (HeldSpeed is { } speed
-            && CanHoldSpeed(Verse.Current.ProgramState, Verse.Current.Game?.World != null, Find.CurrentMap != null, LongEventHandler.AnyEventNowOrWaiting)
-            && Find.TickManager.CurTimeSpeed != speed)
+        if (Speed.TakeDue(CanHoldSpeed(Verse.Current.ProgramState, Verse.Current.Game?.World != null, Find.CurrentMap != null, LongEventHandler.AnyEventNowOrWaiting)) is { } speed)
         {
             Find.TickManager.CurTimeSpeed = speed;
         }
@@ -230,7 +242,10 @@ public sealed class ScriptSession
     {
         var run = _fastForward;
         _fastForward = null;
-        HeldSpeed = run.ResumeSpeed;
+        if (run.ResumeSpeed is { } resume)
+        {
+            Speed.Ask(resume);
+        }
         _progress++;
         if (failure == null)
         {
@@ -323,6 +338,8 @@ public sealed class ScriptSession
         if (Current == this)
         {
             Current = null;
+            DebugViewSettings.neverForceNormalSpeed = _forcedNormalSpeedWas;
+            Prefs.AutomaticPauseMode = _automaticPauseWas;
         }
     }
 
