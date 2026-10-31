@@ -20,6 +20,18 @@ public sealed class SpeedRequest
     /// <summary>Asks for the last speed again, such as when the debugger resumes the script.</summary>
     public void AskAgain() => _due = Last != null;
 
+    /// <summary>Whether the game is at the asked speed; when it isn't, asks again, for a wait that needs the speed to hold.</summary>
+    public bool Holds(TimeSpeed current)
+    {
+        if (current == Last)
+        {
+            return true;
+        }
+
+        AskAgain();
+        return false;
+    }
+
     /// <summary>The speed to apply now, once; null when nothing is due or the game can't take it yet.</summary>
     public TimeSpeed? TakeDue(bool canApply)
     {

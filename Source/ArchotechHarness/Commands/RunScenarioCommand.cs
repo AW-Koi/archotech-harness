@@ -56,7 +56,7 @@ public static class RunScenarioCommand
         {
             if (scenario == null)
             {
-                if (Find.TickManager.CurTimeSpeed != TimeSpeed.Paused && DateTime.UtcNow < pauseDeadline)
+                if (!session.Speed.Holds(Find.TickManager.CurTimeSpeed) && DateTime.UtcNow < pauseDeadline)
                 {
                     return null;
                 }

@@ -38,6 +38,28 @@ public sealed class SpeedRequestTests
     }
 
     [Fact]
+    public void RequestedSpeed_UndoneBeforeItHolds_IsDueAgain()
+    {
+        _request.Ask(TimeSpeed.Paused);
+        _request.TakeDue(canApply: true);
+
+        Assert.False(_request.Holds(TimeSpeed.Normal));
+
+        Assert.Equal(TimeSpeed.Paused, _request.TakeDue(canApply: true));
+    }
+
+    [Fact]
+    public void RequestedSpeed_OnceTheGameIsAtIt_HoldsWithNothingMoreDue()
+    {
+        _request.Ask(TimeSpeed.Paused);
+        _request.TakeDue(canApply: true);
+
+        Assert.True(_request.Holds(TimeSpeed.Paused));
+
+        Assert.Null(_request.TakeDue(canApply: true));
+    }
+
+    [Fact]
     public void Request_NeverAsked_HasNothingDueOrToAskAgain()
     {
         _request.AskAgain();
