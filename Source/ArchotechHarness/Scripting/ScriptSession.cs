@@ -100,6 +100,28 @@ public sealed class ScriptSession
         Timeline.Add("debugger", "resumed");
     }
 
+    public const string PlayerPausedScript = "the player paused the game, so the script waits";
+    public const string PlayerResumedScript = "the player resumed the game, and the script with it";
+    public const string PlayerResumedHeldPause = "the player resumed the game while the script held it paused";
+
+    /// <summary>The player paused or resumed through the time controls: their pause holds the script until they resume, at
+    /// the speed they choose, and unpausing a pause the script asked for is noted.</summary>
+    public void PlayerChangedSpeed(PlayerSpeedChange change)
+    {
+        if (change == PlayerSpeedChange.Paused && Control.PauseForPlayer())
+        {
+            Timeline.Add("player", PlayerPausedScript);
+        }
+        else if (change == PlayerSpeedChange.Resumed && Control.ResumeForPlayer())
+        {
+            Timeline.Add("player", PlayerResumedScript);
+        }
+        else if (change == PlayerSpeedChange.Resumed && !Control.Paused && Speed.Last == TimeSpeed.Paused)
+        {
+            Timeline.Add("player", PlayerResumedHeldPause);
+        }
+    }
+
     /// <summary>Lets the script run up to its next await, then pauses it again.</summary>
     public void StepScript()
     {

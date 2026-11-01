@@ -13,6 +13,9 @@ public sealed class ScriptControl(Func<DateTime> utcNow, Func<int> ticksGame)
 
     public bool Paused { get; private set; }
 
+    /// <summary>Whether the player's pause holds the script, so the player's resume releases it.</summary>
+    public bool HeldForPlayer { get; private set; }
+
     /// <summary>Set by Step: the script pauses again once it has run up to its next await.</summary>
     public bool Stepping { get; private set; }
 
@@ -24,6 +27,7 @@ public sealed class ScriptControl(Func<DateTime> utcNow, Func<int> ticksGame)
     public void Pause()
     {
         Stepping = false;
+        HeldForPlayer = false;
         if (Paused)
         {
             return;
@@ -37,6 +41,7 @@ public sealed class ScriptControl(Func<DateTime> utcNow, Func<int> ticksGame)
     public void Resume()
     {
         Stepping = false;
+        HeldForPlayer = false;
         if (!Paused)
         {
             return;
@@ -45,6 +50,31 @@ public sealed class ScriptControl(Func<DateTime> utcNow, Func<int> ticksGame)
         _pausedBefore += utcNow() - _pausedAt;
         _pausedTicksBefore += ticksGame() - _pausedAtTick;
         Paused = false;
+    }
+
+    /// <summary>Pauses for the player, unless the script is already paused, such as by the debugger; returns whether it paused.</summary>
+    public bool PauseForPlayer()
+    {
+        if (Paused)
+        {
+            return false;
+        }
+
+        Pause();
+        HeldForPlayer = true;
+        return true;
+    }
+
+    /// <summary>Resumes when the player's pause holds the script; returns whether it resumed.</summary>
+    public bool ResumeForPlayer()
+    {
+        if (!HeldForPlayer)
+        {
+            return false;
+        }
+
+        Resume();
+        return true;
     }
 
     /// <summary>Resumes until the script has run up to its next await, then pauses again.</summary>

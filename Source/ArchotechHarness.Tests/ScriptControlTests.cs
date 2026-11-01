@@ -83,4 +83,49 @@ public sealed class ScriptControlTests
 
         Assert.False(_control.Paused);
     }
+
+    [Fact]
+    public void PlayerPause_WhileTheScriptRuns_HoldsTheScriptForThePlayer()
+    {
+        _control.PauseForPlayer();
+
+        Assert.True(_control.Paused);
+        Assert.True(_control.HeldForPlayer);
+    }
+
+    [Fact]
+    public void PlayerResume_AfterThePlayerPaused_ResumesTheScript()
+    {
+        _control.PauseForPlayer();
+        _control.ResumeForPlayer();
+
+        Assert.False(_control.Paused);
+    }
+
+    [Fact]
+    public void PlayerResume_WhileTheDebuggerHoldsTheScript_LeavesItPaused()
+    {
+        _control.Pause();
+        _control.ResumeForPlayer();
+
+        Assert.True(_control.Paused);
+    }
+
+    [Fact]
+    public void PlayerPause_WhileTheDebuggerHoldsTheScript_LeavesTheHoldToTheDebugger()
+    {
+        _control.Pause();
+        _control.PauseForPlayer();
+
+        Assert.False(_control.HeldForPlayer);
+    }
+
+    [Fact]
+    public void DebuggerResume_AfterThePlayerPaused_EndsThePlayersHold()
+    {
+        _control.PauseForPlayer();
+        _control.Resume();
+
+        Assert.False(_control.HeldForPlayer);
+    }
 }
