@@ -95,7 +95,7 @@ Building is best-effort and later commands win. A building, plant, room, floor o
 ### Staging a battle
 
 - `Spawn.Group(faction).Of(kind, count)` spawns one faction's pawns as a group with a lord. Repeat `.Of` for mixed groups. Place it with `.At(cell)` or `.FromEdge(side)`, which picks ground on that edge that reaches the colony. `.Armed(weapon)` replaces every member's weapon. A hostile group assaults the colony and any other group visits, unless you pick `.Assaulting()`, `.Visiting()` or `.Defending()`.
-- `Spawn.Raid(points)` fires a raid even after `World.Calm()`. It takes `.From(faction)`, `.Strategy(def)` and `.Arriving(def)`; the game picks whatever you leave out. `.Spawn()` returns the raiders, and fails the run when the raid can't fire.
+- `Spawn.Raid(points)` fires a raid even after `World.Calm()`. It takes `.From(faction)`, `.Strategy(def)` and `.Arriving(def)`; the game picks whatever you leave out. `.Spawn()` returns the raiders, and fails the run when the raid can't fire. When you chose the faction or the arrival, it throws a `RaidException` whose `Step` says where the raid failed: `Faction` (not hostile to the colony), `EntryPoint` (nowhere to enter the map) or `Raiders` (none generated).
 - `Spawn.Projectile(def).At(cell)` launches shells or other projectiles at a cell. A shell def fires the projectile it loads. `.FromEdge(side, distance)` sets where they come from (north, 60 cells away, without it), `.Scatter(radius)` spreads where they land and `.Count(n)` fires several.
 - `Spawn.Turret(def).At(cell)` places a turret or mortar with a full barrel. `.OwnedBy(faction)` sets its owner, `.Loaded(shell)` loads it and piles spare shells beside it, and `.Manned(kind)` or `.MannedBy(pawn)` gives it a crew. An enemy crew mans it and fires at the colony.
 - `Build.Line(def, from, to)` builds an L-shaped line of buildings, such as sandbags, along x then along z. Vanilla has no trench, so lay a strip of floor such as `TerrainDefOf.PackedDirt` with `Build.Floor` instead.
@@ -166,7 +166,11 @@ When `archo run` or `archo test` runs scenarios in a visible game, a "Scenario d
 - **Resume** carries on from there at the speed the script last set.
 - **Step** runs the script up to its next `await`, then pauses it again.
 
+Pausing the game yourself, with the pause key or the pause button, pauses the script the same way, and unpausing resumes it at the speed you chose. The game's own pauses, such as on an error, leave the script running. If you unpause while the script holds the game paused, the game runs and the timeline notes it.
+
 Time spent paused doesn't count towards an `Until` timeout, and ticks you run while paused don't count towards `Ticks`. A scenario run still stops after 30 minutes, pauses included. Screenshots and videos leave the panel out, and the panel stays closed while a scenario records video. Pass `--no-panel` to run without it. `archo send debugger '{"action":"pause"}'` does the same from a script; the actions are `state`, `pause`, `resume` and `step`.
+
+A run whose game you close reports "The game was closed while the scenario ran."; a game that stops any other way, such as a crash, reports "Lost the game".
 
 ### Game errors
 
@@ -381,7 +385,3 @@ Each game runs with its own save-data folder under `.harness/`, so it never read
 ## Licence
 
 MIT. See [LICENSE](LICENSE). RimWorld is the property of Ludeon Studios.
-Pausing the game yourself, with the pause key or the pause button, pauses the script the same way, and unpausing resumes it at the speed you chose. The game's own pauses, such as on an error, leave the script running. If you unpause while the script holds the game paused, the game runs and the timeline notes it.
-
-A run whose game you close reports "The game was closed while the scenario ran."; a game that stops any other way, such as a crash, reports "Lost the game".
-
