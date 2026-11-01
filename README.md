@@ -383,3 +383,5 @@ Each game runs with its own save-data folder under `.harness/`, so it never read
 MIT. See [LICENSE](LICENSE). RimWorld is the property of Ludeon Studios.
 Pausing the game yourself, with the pause key or the pause button, pauses the script the same way, and unpausing resumes it at the speed you chose. The game's own pauses, such as on an error, leave the script running. If you unpause while the script holds the game paused, the game runs and the timeline notes it.
 
+A run whose game you close reports "The game was closed while the scenario ran."; a game that stops any other way, such as a crash, reports "Lost the game".
+

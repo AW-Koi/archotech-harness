@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using ArchotechHarness.Shared;
 using Verse;
 
 namespace ArchotechHarness.Scripting;
@@ -147,6 +148,7 @@ public sealed class ScriptSession
         session._automaticPauseWas = Prefs.AutomaticPauseMode;
         DebugViewSettings.neverForceNormalSpeed = true;
         Prefs.AutomaticPauseMode = AutomaticPauseMode.Never;
+        AppDomain.CurrentDomain.ProcessExit += session.LeaveClosedMark;
         return Current = session;
     }
 
@@ -279,6 +281,9 @@ public sealed class ScriptSession
         }
     }
 
+    /// <summary>The game is closing normally while the script runs, so archo reports a closed game rather than a lost one.</summary>
+    private void LeaveClosedMark(object sender, EventArgs e) => System.IO.File.WriteAllText(System.IO.Path.Combine(OutputDirectory, GameClosedMark.FileName), string.Empty);
+
     /// <summary>Wall time less the time spent paused, which wait deadlines count in.</summary>
     private DateTime ScriptNow => DateTime.UtcNow - Control.PausedTime;
 
@@ -349,6 +354,7 @@ public sealed class ScriptSession
 
     public void End()
     {
+        AppDomain.CurrentDomain.ProcessExit -= LeaveClosedMark;
         foreach (var wait in _waits)
         {
             wait.Signal.TrySetCanceled();

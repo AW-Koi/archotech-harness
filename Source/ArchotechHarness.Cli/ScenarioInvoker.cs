@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Text.Json.Nodes;
+using ArchotechHarness.Shared;
 
 namespace ArchotechHarness.Cli;
 
@@ -48,9 +49,13 @@ public static class ScenarioInvoker
         }
         catch (Exception e) when (e is IOException or SocketException)
         {
-            return new JsonObject { ["passed"] = false, ["error"] = "Lost the game: " + e.Message };
+            return new JsonObject { ["passed"] = false, ["error"] = LostGameError(outputDirectory, e.Message) };
         }
     }
+
+    /// <summary>Why the connection to the game dropped: closed when the game left its mark in the run folder, else lost.</summary>
+    public static string LostGameError(string outputDirectory, string connectionError) =>
+        File.Exists(Path.Combine(outputDirectory, GameClosedMark.FileName)) ? "The game was closed while the scenario ran." : "Lost the game: " + connectionError;
 
     /// <summary>Replaces the game with a fresh quick-test colony, on the biome if given, and returns how long that took.</summary>
     public static double NewGame(HarnessClient client, string? biome = null)
