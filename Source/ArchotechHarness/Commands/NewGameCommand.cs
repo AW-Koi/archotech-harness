@@ -9,7 +9,7 @@ using Verse.Profile;
 namespace ArchotechHarness.Commands;
 
 /// <summary>Throws the current game away and starts a fresh quick-test colony, as the -quicktest start does.</summary>
-/// <remarks>Arguments: "mapSize" (default 250), "planetCoverage" (default 0.05, or 0.3 with a biome), "seed", "biome" (a BiomeDef name; default any). Replies once the new map is playable.</remarks>
+/// <remarks>Arguments: "mapSize" (default 250), "planetCoverage" (default 0.05, or 0.3 with a biome), "seed" (a world seed, which also fixes the starting tile and colonists), "biome" (a BiomeDef name; default any). Replies once the new map is playable.</remarks>
 public static class NewGameCommand
 {
     private const double TimeoutSeconds = 180;
@@ -20,7 +20,8 @@ public static class NewGameCommand
         var mapSize = Arguments.Int(args, "mapSize", 250);
         StartingTile.Biome = Arguments.String(args, "biome");
         var coverage = Arguments.Float(args, "planetCoverage", StartingTile.Biome == null ? 0.05f : 0.3f);
-        var seed = Arguments.String(args, "seed") ?? GenText.RandomSeedString();
+        var fixedSeed = Arguments.String(args, "seed");
+        var seed = fixedSeed ?? GenText.RandomSeedString();
         MapGenerationFailure.Last = null;
         var previous = Current.Game;
         var started = DateTime.UtcNow;
@@ -30,6 +31,11 @@ public static class NewGameCommand
         LongEventHandler.QueueLongEvent(() =>
         {
             MemoryUtility.ClearAllMapsAndWorld();
+            if (fixedSeed != null)
+            {
+                RandSeeder.Seed(GenText.StableStringHash(fixedSeed));
+            }
+
             Setup(mapSize, coverage, seed);
             Find.GameInitData.PrepForMapGen();
             Find.Scenario.PreMapGenerate();

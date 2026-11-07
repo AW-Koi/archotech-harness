@@ -191,7 +191,7 @@ Put `[AllowGameErrors]` on the class to let it pass anyway, or `[AllowGameErrors
 
 ### Random seed
 
-Each run starts the game's random numbers from a seed just before `Run`, and the report records it as `seed`. Put `[Seed(1234)]` on the class to choose it, such as to repeat a run. The seed repeats the scenario's random draws only from the same starting map, and each game generates a new quick-test map, so a scenario that depends on the map can still differ between games.
+Each run starts the game's random numbers from a seed just before `Run`, and the report records it as `seed`. Put `[Seed(1234)]` on the class to choose it, so every run is the same. A seeded scenario starts on a new game generated from its seed, so the world, the map, the starting tile and the colonists it spawns come out the same each run; a raid's raiders can still differ. That costs a map generation per run.
 
 ### Defs
 
@@ -233,7 +233,7 @@ Attributes on a class add to the project's mods for that scenario. Their paths a
 | `[RequiresMod("ferny.ProgressionEducation")]` | Loads an installed mod by package id, with its dependencies. Repeat it for several mods. See [Compatibility scenarios](#compatibility-scenarios). |
 | `[Dlc("biotech")]` | Activates DLCs: `royalty`, `ideology`, `biotech`, `anomaly`, `odyssey`. |
 | `[Biome(nameof(BiomeDefOf.TemperateForest))]` | Starts the colony on that biome, on flat or small hills averaging 10 to 25C where the world has such a tile. A name that isn't a loaded biome colonies can settle fails the run. |
-| `[Seed(1234)]` | Starts the game's random numbers from that seed before `Run`. |
+| `[Seed(1234)]` | Starts the scenario on a game generated from that seed, and the game's random numbers from it before `Run`. |
 
 ### Compatibility scenarios
 

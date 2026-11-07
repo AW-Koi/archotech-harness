@@ -57,10 +57,11 @@ public static class ScenarioInvoker
     public static string LostGameError(string outputDirectory, string connectionError) =>
         File.Exists(Path.Combine(outputDirectory, GameClosedMark.FileName)) ? "The game was closed while the scenario ran." : "Lost the game: " + connectionError;
 
-    /// <summary>Replaces the game with a fresh quick-test colony, on the biome if given, and returns how long that took.</summary>
-    public static double NewGame(HarnessClient client, string? biome = null)
+    /// <summary>Replaces the game with a fresh quick-test colony, on the biome if given and generated from the seed if given, and
+    /// returns how long that took.</summary>
+    public static double NewGame(HarnessClient client, string? biome = null, int? seed = null)
     {
-        var response = client.Send("newGame", new JsonObject { ["timeoutSeconds"] = NewGameTimeoutSeconds, ["biome"] = biome });
+        var response = client.Send("newGame", new JsonObject { ["timeoutSeconds"] = NewGameTimeoutSeconds, ["biome"] = biome, ["seed"] = seed?.ToString() });
         return response["ok"]?.GetValue<bool>() == true
             ? response["result"]!["seconds"]!.GetValue<double>()
             : throw new ScenarioException("Could not start a fresh game: " + response["error"]);

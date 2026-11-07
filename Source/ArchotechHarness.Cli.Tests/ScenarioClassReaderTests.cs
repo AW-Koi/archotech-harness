@@ -108,6 +108,20 @@ public sealed class ScenarioClassReaderTests : IDisposable
     }
 
     [Fact]
+    public void Read_SeedAttribute_SetsTheSeed()
+    {
+        _temp.WriteFile("MopMod/harness/Scenarios.csproj", "<Project />");
+        var file = _temp.WriteFile("MopMod/harness/Repeatable.cs", """
+            [Seed(1234)]
+            public class Repeatable : HarnessScenario { public override Task Run() => Task.CompletedTask; }
+            """);
+
+        var scenario = ScenarioClassReader.Read(file);
+
+        Assert.Equal(1234, scenario.Seed);
+    }
+
+    [Fact]
     public void Read_ScenarioWithoutAttributes_UsesTheDefaultProfile()
     {
         _temp.WriteFile("MopMod/harness/Scenarios.csproj", "<Project />");
@@ -120,6 +134,7 @@ public sealed class ScenarioClassReaderTests : IDisposable
         Assert.Empty(scenario.RequiredMods);
         Assert.Equal(new WindowSize(1600, 900), scenario.Window);
         Assert.Null(scenario.Biome);
+        Assert.Null(scenario.Seed);
     }
 
     [Fact]

@@ -244,9 +244,9 @@ public sealed class ScenarioBatch(SessionManager sessions, TextWriter output, Te
                             new JsonObject { ["passed"] = false, ["error"] = loadFailure }, outputDirectory);
                     }
 
-                    if (!_freshGame)
+                    if (!_freshGame || scenario.Seed != null)
                     {
-                        setup = ScenarioInvoker.NewGame(new HarnessClient(session.Port), group.Biome);
+                        setup = ScenarioInvoker.NewGame(new HarnessClient(session.Port), group.Biome, scenario.Seed);
                     }
 
                     _freshGame = false;

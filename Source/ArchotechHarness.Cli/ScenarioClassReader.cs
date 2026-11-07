@@ -41,6 +41,7 @@ public static class ScenarioClassReader
         var requiredMods = new List<string>();
         var window = new WindowSize(1600, 900);
         string? biome = null;
+        int? seed = null;
         foreach (var attribute in scenario.AttributeLists.SelectMany(l => l.Attributes))
         {
             var arguments = attribute.ArgumentList?.Arguments.ToList() ?? [];
@@ -61,12 +62,15 @@ public static class ScenarioClassReader
                 case "Biome":
                     biome = NameOrLiteral(arguments[0], fullPath);
                     break;
+                case "Seed":
+                    seed = Literal<int>(arguments[0], fullPath);
+                    break;
             }
         }
 
         var distinctMods = mods.DistinctBy(m => m.Directory, StringComparer.OrdinalIgnoreCase).ToList();
         var distinctRequiredMods = requiredMods.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return new ScenarioClass(FullName(scenario), fullPath, project, distinctMods, dlcs, window, distinctRequiredMods, biome);
+        return new ScenarioClass(FullName(scenario), fullPath, project, distinctMods, dlcs, window, distinctRequiredMods, biome, seed);
     }
 
     private static ScenarioMod ReadMod(List<AttributeArgumentSyntax> arguments, string directory, string file)

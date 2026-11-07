@@ -73,6 +73,11 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
         }
         else
         {
+            if (scenario.Seed is { } seed)
+            {
+                ScenarioInvoker.NewGame(new HarnessClient(session.Port), scenario.Biome, seed);
+            }
+
             report = ScenarioInvoker.Run(new HarnessClient(session.Port), assembly, scenario.TypeName, runDirectory, videoFps, DebugPanel);
         }
 
