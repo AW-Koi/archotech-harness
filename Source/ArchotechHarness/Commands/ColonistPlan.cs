@@ -29,6 +29,9 @@ public sealed class ColonistPlan(IntVec3 cell)
     /// <summary>The biological and chronological age in years; without it, the kind's usual age.</summary>
     public float? Age { get; init; }
 
+    /// <summary>Without it, the game picks the gender.</summary>
+    public Gender? Gender { get; init; }
+
     public XenotypeDef Xenotype { get; init; }
 
     /// <summary>Childhood and adulthood backstories that replace the generated ones in their slot.</summary>

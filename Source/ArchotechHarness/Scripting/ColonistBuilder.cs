@@ -24,6 +24,7 @@ public sealed class ColonistBuilder
     private readonly List<ThingDef> _apparel = new();
     private bool _drafted;
     private float? _age;
+    private Gender? _gender;
     private XenotypeDef _xenotype;
     private readonly List<BackstoryDef> _backstories = new();
 
@@ -124,6 +125,13 @@ public sealed class ColonistBuilder
         return this;
     }
 
+    /// <summary>Without it, the game picks the gender.</summary>
+    public ColonistBuilder Gendered(Gender gender)
+    {
+        _gender = gender;
+        return this;
+    }
+
     /// <summary>Needs Biotech.</summary>
     public ColonistBuilder Xenotype(XenotypeDef xenotype)
     {
@@ -171,6 +179,7 @@ public sealed class ColonistBuilder
             Skills = _skills,
             IncapableOf = _incapableOf,
             Age = _age,
+            Gender = _gender,
             Xenotype = _xenotype,
             Backstories = _backstories,
         });

@@ -114,7 +114,7 @@ Building is best-effort and later commands win. A building, plant, room, floor o
 
 ### Who pawns are
 
-- `Spawn.Colonist()` takes `.Aged(years)`, `.Xenotype(def)` and `.WithBackstory(def)`, which replaces the childhood or adulthood by the backstory's slot. A child or baby, and a xenotype, need `[Dlc("biotech")]`.
+- `Spawn.Colonist()` takes `.Aged(years)`, `.Gendered(gender)`, `.Xenotype(def)` and `.WithBackstory(def)`, which replaces the childhood or adulthood by the backstory's slot. A child or baby, and a xenotype, need `[Dlc("biotech")]`.
 - `pawn.GrantTitle(title)` grants a royal title of the Empire, or of the faction you pass, with no rewards or letter. It needs `[Dlc("royalty")]`.
 - `pawn.AssignRole(def)` gives a pawn the role of its ideoligion with that def, such as `PreceptDefOf.IdeoRole_Leader`. It needs `[Dlc("ideology")]`.
 - `pawn.Relate(other, def)` adds a relation, such as `PawnRelationDefOf.Spouse`, `Fiance`, `Lover`, `ExLover` or `Parent`, where `other` is the pawn's spouse, parent and so on.
@@ -344,7 +344,7 @@ When an error stops the game's first data load, the game loads its data a second
 | `Build.Path(from, to)`, `Build.InWall(def, cell, facing)`, `Build.Conduit(from, to)` | Lays an L-shaped path, mounts a building in a wall, or lays a conduit. |
 | `Furnish.Bedroom(room)`, `Furnish.Dining(room, area)`, `Decorate.Room(room)` | Furnishes or decorates a room. Finish with `.Build()`. |
 | `Spawn.Plant(def)`, `Spawn.Animal(kind)` | Plants a tree or flower, or adds an animal. Finish with `.Spawn()`. |
-| `Spawn.Colonist()` | Spawns a colonist. Takes `.WithName`, `.At(cell)` or `.Inside(room)`, `.Doing(workTypes)`, `.KeepingOtherWork()`, `.IncapableOf(tags)`, `.WithTrait`, `.WithSkill`, `.OfKind`, `.Armed(weapon)`, `.Wearing(apparel)`, `.Drafted()`, `.Aged(years)`, `.Xenotype(def)` and `.WithBackstory(def)`. Finish with `.Spawn()`. |
+| `Spawn.Colonist()` | Spawns a colonist. Takes `.WithName`, `.At(cell)` or `.Inside(room)`, `.Doing(workTypes)`, `.KeepingOtherWork()`, `.IncapableOf(tags)`, `.WithTrait`, `.WithSkill`, `.OfKind`, `.Armed(weapon)`, `.Wearing(apparel)`, `.Drafted()`, `.Aged(years)`, `.Gendered(gender)`, `.Xenotype(def)` and `.WithBackstory(def)`. Finish with `.Spawn()`. |
 | `Spawn.Thing(def)` | Makes a thing. Takes `.At(cell)` or `.GivenTo(pawn)`, `.MadeOf`, `.OfQuality`, `.Stack` and, for a building, `.Facing(rot)`, `.Fuelled()`, `.Charged()`, `.Growing(plant)`, `.WithBill(recipe)` and `.Holding(def, count)`, and for a bed `.Medical()` and `.ForPrisoners()`. `.AsBlueprint()` places a blueprint instead. Finish with `.Spawn()`. |
 | `Spawn.Filth(def, cell)` | Places filth. |
 | `Spawn.Prisoner()` | Spawns a prisoner of the colony. Requires one of `.At(cell)`, `.Inside(room)` or `.InBed(bed)`; takes `.From(faction)`, `.OfKind`, `.WithName`, `.WithTrait`, `.WithSkill`, `.Aged` and `.WithBackstory`. Finish with `.Spawn()`. |

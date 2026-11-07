@@ -121,7 +121,7 @@ public static class SpawnPawnCommand
     private static PawnGenerationRequest Request(ColonistPlan plan)
     {
         var request = new PawnGenerationRequest(plan.Kind, plan.Faction ?? Faction.OfPlayer, forceGenerateNewPawn: true,
-            canGeneratePawnRelations: false, allowAddictions: false, forcedXenotype: plan.Xenotype);
+            canGeneratePawnRelations: false, allowAddictions: false, forcedXenotype: plan.Xenotype, fixedGender: plan.Gender);
         if (plan.Age is { } years)
         {
             request.FixedBiologicalAge = years;
