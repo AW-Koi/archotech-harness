@@ -25,6 +25,7 @@ public sealed class ColonistBuilder
     private bool _drafted;
     private float? _age;
     private Gender? _gender;
+    private bool _onlyTraitsGiven;
     private XenotypeDef _xenotype;
     private readonly List<BackstoryDef> _backstories = new();
 
@@ -81,6 +82,13 @@ public sealed class ColonistBuilder
     public ColonistBuilder WithTrait(TraitDef trait, int degree = 0)
     {
         _traits.Add(new Trait(trait, degree));
+        return this;
+    }
+
+    /// <summary>Drops the traits the game rolled, leaving only those given to WithTrait, or none.</summary>
+    public ColonistBuilder OnlyTraitsGiven()
+    {
+        _onlyTraitsGiven = true;
         return this;
     }
 
@@ -176,6 +184,7 @@ public sealed class ColonistBuilder
             Work = _work,
             OnlyWork = _onlyWork,
             Traits = _traits,
+            OnlyTraitsGiven = _onlyTraitsGiven,
             Skills = _skills,
             IncapableOf = _incapableOf,
             Age = _age,

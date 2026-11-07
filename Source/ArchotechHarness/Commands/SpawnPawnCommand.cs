@@ -79,6 +79,14 @@ public static class SpawnPawnCommand
             pawn.Notify_DisabledWorkTypesChanged();
         }
 
+        if (plan.OnlyTraitsGiven)
+        {
+            foreach (var rolled in pawn.story.traits.allTraits.ToList())
+            {
+                pawn.story.traits.RemoveTrait(rolled);
+            }
+        }
+
         foreach (var trait in plan.Traits)
         {
             GainTrait(pawn, trait.def, trait.Degree);

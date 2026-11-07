@@ -19,6 +19,9 @@ public sealed class ColonistPlan(IntVec3 cell)
 
     public IReadOnlyList<Trait> Traits { get; init; } = [];
 
+    /// <summary>Drops the traits the game rolled, so the colonist has only Traits.</summary>
+    public bool OnlyTraitsGiven { get; init; }
+
     public IReadOnlyDictionary<SkillDef, int> Skills { get; init; } = new Dictionary<SkillDef, int>();
 
     public WorkTags IncapableOf { get; init; }
