@@ -306,6 +306,7 @@ Call it with `archo send probe '{"name":"MyMod.MopsOnMap"}'`.
 | Command | Does |
 | --- | --- |
 | `archo run FILE.cs` | Runs one scenario in a new game, then closes it. `--keep-open` leaves the game running; `--attach` uses a game that's already running. |
+| `archo run --film` | Plays the game borderless at the monitor's native size, with game sound and no music, for filming it. |
 | `archo test [PATH]...` | Runs every scenario in the files, folders or projects given, and writes `report.html`. |
 | `archo test --filter GLOB` | Runs only matching scenarios, such as `--filter "Mop*"`. Repeat it to match several patterns. |
 | `archo test --retries N` | Retries a failed scenario up to N times. |

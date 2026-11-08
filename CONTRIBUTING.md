@@ -41,12 +41,12 @@ Nobody pushes to `main` directly.
 | --- | --- |
 | `-quicktest` | Loads straight into a Crashlanded colony on a 250 by 250 map. |
 | `-savedatafolder=<profile>` | Keeps the game's config and saves out of the player's. |
-| `-WindowSize=W,H` | Sets the window size. |
+| `-WindowSize=W,H` | Sets the window size and locks it. `archo run --film` leaves it off so the game can go borderless. |
 | `-harnessPort=N` | The port the harness mod listens on. |
 | `-NoCrashDialog`, `-DisableLogStackTraces` | Keeps crashes and logs unattended. |
 | `-NoWindow -NoFileLog` | Worker games only. `-NoWindow` still renders, so screenshots work. |
 
-`-Headless` also runs scenarios, but it renders nothing, so screenshots fail. The written Prefs.xml turns on dev mode, a window, running unfocused and silence.
+`-Headless` also runs scenarios, but it renders nothing, so screenshots fail. The written Prefs.xml turns on dev mode, a window, running unfocused and silence. `archo run --film` swaps the window and silence for borderless at the native size and game sound without music.
 
 ## Icons
 

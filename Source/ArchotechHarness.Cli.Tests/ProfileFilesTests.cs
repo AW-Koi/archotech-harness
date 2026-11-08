@@ -37,7 +37,7 @@ public sealed class ProfileFilesTests : IDisposable
     {
         var path = _temp.Combine("Prefs.xml");
 
-        ProfileFiles.WritePrefs(path, new WindowSize(1600, 900));
+        ProfileFiles.WritePrefs(path, new WindowSize(1600, 900), filming: false);
 
         var prefs = XDocument.Load(path).Root!;
         Assert.Equal("True", prefs.Element("devMode")!.Value);
@@ -45,5 +45,41 @@ public sealed class ProfileFilesTests : IDisposable
         Assert.Equal("True", prefs.Element("runInBackground")!.Value);
         Assert.Equal("1600", prefs.Element("screenWidth")!.Value);
         Assert.Equal("900", prefs.Element("screenHeight")!.Value);
+    }
+
+    [Fact]
+    public void Prefs_ForFilming_PlaysBorderlessAtTheMonitorsNativeSize()
+    {
+        var path = _temp.Combine("Prefs.xml");
+
+        ProfileFiles.WritePrefs(path, new WindowSize(1600, 900), filming: true);
+
+        var prefs = XDocument.Load(path).Root!;
+        Assert.Equal("True", prefs.Element("fullscreen")!.Value);
+        Assert.Equal("0", prefs.Element("screenWidth")!.Value);
+        Assert.Equal("0", prefs.Element("screenHeight")!.Value);
+    }
+
+    [Fact]
+    public void Prefs_ForFilming_PlaysGameSoundWithoutMusic()
+    {
+        var path = _temp.Combine("Prefs.xml");
+
+        ProfileFiles.WritePrefs(path, new WindowSize(1600, 900), filming: true);
+
+        var prefs = XDocument.Load(path).Root!;
+        Assert.Equal("1", prefs.Element("volumeMaster")!.Value);
+        Assert.Equal("0", prefs.Element("volumeMusic")!.Value);
+    }
+
+    [Fact]
+    public void Prefs_ForFilming_ScalesTheInterfaceForANativeScreen()
+    {
+        var path = _temp.Combine("Prefs.xml");
+
+        ProfileFiles.WritePrefs(path, new WindowSize(1600, 900), filming: true);
+
+        var prefs = XDocument.Load(path).Root!;
+        Assert.Equal("1.5", prefs.Element("uiScale")!.Value);
     }
 }

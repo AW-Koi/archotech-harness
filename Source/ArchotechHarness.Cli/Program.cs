@@ -9,7 +9,7 @@ public static class Program
         archo: drive RimWorld 1.7 through the Archotech Harness mod.
 
           archo launch [--dlc NAME]... [--mod DIR]... [--window WxH] [--port N]
-          archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--video] [--no-panel] [--allow-load-errors] [--out DIR] [--port N]
+          archo run SCENARIO.cs [--keep-open] [--attach] [--wait] [--video] [--no-panel] [--allow-load-errors] [--film] [--out DIR] [--port N]
           archo test [PATH]... [--filter GLOB]... [--retries N] [--workers N|auto] [--wait] [--video] [--no-panel] [--allow-load-errors] [--out DIR]
           archo send COMMAND ['{"json":"args"}'] [--session ID]
           archo capture PATH.png [--session ID]
@@ -77,7 +77,7 @@ public static class Program
             : Path.Combine(paths.RunsDirectory, $"{Path.GetFileNameWithoutExtension(file)}-{DateTime.Now:yyyyMMdd-HHmmss}");
         WaitIfAsked(sessions, options);
         PruneOldRuns(paths, sessions);
-        var failed = !new ScenarioClassRunner(sessions, Console.Out, Console.Error) { DebugPanel = !options.Flag("--no-panel"), AllowLoadErrors = options.Flag("--allow-load-errors") }
+        var failed = !new ScenarioClassRunner(sessions, Console.Out, Console.Error) { DebugPanel = !options.Flag("--no-panel"), AllowLoadErrors = options.Flag("--allow-load-errors"), Filming = options.Flag("--film") }
             .Run(file, runDirectory, options.Flag("--keep-open"), options.Flag("--attach"), options.Port(), options.VideoFps());
         return failed ? 1 : 0;
     }

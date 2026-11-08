@@ -126,29 +126,14 @@ public sealed class SessionManager(HarnessPaths paths, TextWriter progress)
             var profile = paths.ProfileDirectory(id);
             var config = Path.Combine(profile, "Config");
             ProfileFiles.WriteModsConfig(Path.Combine(config, "ModsConfig.xml"), ModProfile.LoadOrder(options.Dlcs, packageIds), paths.GameVersion);
-            ProfileFiles.WritePrefs(Path.Combine(config, "Prefs.xml"), options.Window);
+            ProfileFiles.WritePrefs(Path.Combine(config, "Prefs.xml"), options.Window, options.Filming);
 
             var port = options.Port > 0 ? options.Port : FreePort();
-            var arguments = new List<string>
-            {
-                "-quicktest", $"\"-savedatafolder={profile}\"", $"-WindowSize={options.Window.Width},{options.Window.Height}",
-                $"-harnessPort={port}", "-NoCrashDialog", "-DisableLogStackTraces",
-            };
-            if (options.Hidden)
-            {
-                arguments.AddRange(["-NoWindow", "-NoFileLog"]);
-            }
-
-            if (options.Biome != null)
-            {
-                arguments.Add($"-harnessBiome={options.Biome}");
-            }
-
             game = Process.Start(new ProcessStartInfo(paths.GameExecutable)
             {
                 WorkingDirectory = paths.GameDirectory,
                 UseShellExecute = true,
-                Arguments = string.Join(' ', arguments),
+                Arguments = string.Join(' ', GameArguments.For(options, profile, port)),
             }) ?? throw new ScenarioException("RimWorld did not start.");
             session = new SessionState(id, paths.Home, game.Id, port, DateTime.UtcNow);
             session.Save(paths.SessionFile(id));

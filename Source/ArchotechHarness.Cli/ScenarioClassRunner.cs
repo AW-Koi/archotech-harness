@@ -13,6 +13,9 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
     /// <summary>Runs the scenario even when a mod under test logged errors while the game loaded.</summary>
     public bool AllowLoadErrors { get; init; }
 
+    /// <summary>Boots the game borderless at the monitor's native size with game sound and no music.</summary>
+    public bool Filming { get; init; }
+
     /// <summary>Returns false when the scenario failed; a scenario skipped for a missing required mod returns true.</summary>
     public bool Run(string sourceFile, string runDirectory, bool keepOpen, bool attach, int port, double videoFps = 0)
     {
@@ -58,7 +61,7 @@ public sealed class ScenarioClassRunner(SessionManager sessions, TextWriter outp
 
         session ??= sessions.Start(new LaunchOptions(
             scenario.Dlcs.Concat(required.Dlcs).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            scenario.Mods.Select(m => m with { Build = null }).ToList(), required.Mods, scenario.Window, port, Biome: scenario.Biome));
+            scenario.Mods.Select(m => m with { Build = null }).ToList(), required.Mods, scenario.Window, port, Biome: scenario.Biome, Filming: Filming));
         var load = new GameLoadReader(sessions, progress.WriteLine).Read(scenario.TypeName[(scenario.TypeName.LastIndexOf('.') + 1)..], scenario.Mods, session);
         if (load.Errors.Count > 0)
         {
